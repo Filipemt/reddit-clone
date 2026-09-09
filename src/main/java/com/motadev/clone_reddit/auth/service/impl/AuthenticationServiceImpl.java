@@ -2,28 +2,39 @@ package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.request.LoginRequest;
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
+import com.motadev.clone_reddit.auth.entity.User;
+import com.motadev.clone_reddit.auth.entity.enums.RoleValues;
+import com.motadev.clone_reddit.auth.repository.RoleRepository;
 import com.motadev.clone_reddit.auth.repository.UserRepository;
 import com.motadev.clone_reddit.auth.service.AuthenticationServiceI;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Set;
 
 @Service
 @Slf4j
 public class AuthenticationServiceImpl implements AuthenticationServiceI {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenServiceI tokenService;
 
     public AuthenticationServiceImpl(UserRepository userRepository,
                                      PasswordEncoder passwordEncoder,
-                                     TokenServiceI tokenService) {
+                                     TokenServiceI tokenService,
+                                     RoleRepository roleRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
+        this.roleRepository = roleRepository;
     }
 
     @Override
@@ -37,5 +48,23 @@ public class AuthenticationServiceImpl implements AuthenticationServiceI {
         }
 
         return tokenService.generateToken(user);
+    }
+
+    @Override
+    @Transactional
+    public void register(LoginRequest loginRequest) {
+        var basicRole = roleRepository.findByName(RoleValues.BASIC.name());
+
+        var userFromDb = userRepository.findByUsername(loginRequest.username());
+        if (userFromDb.isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT);
+        }
+
+        var user = new User();
+        user.setUsername(loginRequest.username());
+        user.setPassword(passwordEncoder.encode(loginRequest.password()));
+        user.setRoles(Set.of(basicRole));
+
+        userRepository.save(user);
     }
 }
