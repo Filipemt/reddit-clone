@@ -37,7 +37,6 @@ public class TokenServiceImpl implements TokenServiceI {
                 .collect(Collectors.joining(" "));
 
         var claims = JwtClaimsSet.builder()
-                // Todo: Extrair issuer hardcoded para propriedade jwt.issuer
                 .issuer(issuer)
                 .subject(user.getUserId().toString())
                 .issuedAt(now)
