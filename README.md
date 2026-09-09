@@ -140,6 +140,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 
 ```
 /docs
+  /security           → Documentação de segurança (JWT, chaves, etc.)
   /system-design      → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
   /mer                → Modelo Entidade-Relacionamento e modelagem de dados
   /adr                → Architecture Decision Records (se adotado futuramente)
@@ -150,11 +151,54 @@ README.md              → Este documento
 
 ---
 
+## 🛠️ Desenvolvimento local
+
+**Pré-requisitos**
+- Java 25
+- Docker (para o PostgreSQL)
+- OpenSSL 3.x (para gerar as chaves JWT)
+
+**1. Suba o banco de dados**
+
+```bash
+docker compose up -d          # inicia o Postgres (docker/docker-compose.yml)
+docker compose down -v        # para resetar o banco e os dados (recria o schema via Liquibase)
+```
+
+**2. Gere as chaves JWT**
+
+O projeto assina e valida tokens com um par de chaves RSA. As chaves ficam em `src/main/resources/app.key` e `app.pub` e **não são versionadas** (estão no `.gitignore`). Gere-as antes do primeiro boot:
+
+```bash
+openssl genpkey -algorithm RSA -out src/main/resources/app.key -pkeyopt rsa_keygen_bits:2048
+chmod 600 src/main/resources/app.key
+openssl rsa -in src/main/resources/app.key -pubout -out src/main/resources/app.pub
+```
+
+Veja [docs/security/jwt-keys.md](docs/security/jwt-keys.md) para detalhes, testes e rotação de chaves.
+
+**3. Suba a aplicação**
+
+```bash
+./mvnw spring-boot:run
+```
+
+O Liquibase aplica as migrations, seeda os papéis (`BASIC`, `ADMIN`) e o `AdminUserConfig` cria o usuário admin inicial:
+
+```
+POST /authentication/login
+{ "username": "admin", "password": "123" }
+```
+
+As credenciais acima são apenas para desenvolvimento local (`application.yaml`).
+
+---
+
 ## 🚧 Status atual
 
-**Fase: Definição de domínio e System Design.**
+**Fase: autenticação JWT funcional.**
 
-O projeto ainda não possui código. As anotações de domínio, entidades e mapeamento de habilidades foram fechadas; o próximo passo é o desenho do System Design (definição de serviços, bancos de dados por serviço, comunicação síncrona/assíncrona, MER) antes do início da implementação.
+A aplicação já tem estrutura Spring Boot com autenticação via JWT (OAuth2 Resource Server), PostgreSQL rodando via Docker, migrações Liquibase e seed de usuário admin. Próximos passos planejados: modelagem do domínio (comunidades, posts, comentários, votos) e autorização baseada em papéis (RBAC).
 
 ---
 
