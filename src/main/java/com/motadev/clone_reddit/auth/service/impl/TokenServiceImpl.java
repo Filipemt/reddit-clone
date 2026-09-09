@@ -19,6 +19,9 @@ public class TokenServiceImpl implements TokenServiceI {
 
     @Value("${jwt.expiresIn}")
     private Long expiresIn;
+    @Value("${jwt.issuer}")
+    private String issuer;
+
 
     public TokenServiceImpl(JwtEncoder jwtEncoder) {
         this.jwtEncoder = jwtEncoder;
@@ -35,7 +38,7 @@ public class TokenServiceImpl implements TokenServiceI {
 
         var claims = JwtClaimsSet.builder()
                 // Todo: Extrair issuer hardcoded para propriedade jwt.issuer
-                .issuer("backend-reddit-clone")
+                .issuer(issuer)
                 .subject(user.getUserId().toString())
                 .issuedAt(now)
                 .claim("scope", scope)
