@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-create-tb-users" author="motadev">
+        <createTable tableName="tb_users">
+            <column name="user_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="password" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2-create-tb-roles" author="motadev">
+        <createTable tableName="tb_roles">
+            <column name="role_id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="3-create-tb-users-roles" author="motadev">
+        <createTable tableName="tb_users_roles">
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="role_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="tb_users_roles"
+                       columnNames="user_id, role_id"
+                       constraintName="pk_tb_users_roles"/>
+
+        <addForeignKeyConstraint baseTableName="tb_users_roles"
+                                 baseColumnNames="user_id"
+                                 constraintName="fk_users_roles_user"
+                                 referencedTableName="tb_users"
+                                 referencedColumnNames="user_id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="tb_users_roles"
+                                 baseColumnNames="role_id"
+                                 constraintName="fk_users_roles_role"
+                                 referencedTableName="tb_roles"
+                                 referencedColumnNames="role_id"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+    <changeSet id="4-seed-roles" author="motadev">
+        <insert tableName="tb_roles">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="name" value="BASIC"/>
+        </insert>
+        <insert tableName="tb_roles">
+            <column name="role_id" valueNumeric="2"/>
+            <column name="name" value="ADMIN"/>
+        </insert>
+        <sql dbms="postgresql">
+            SELECT setval(pg_get_serial_sequence('tb_roles', 'role_id'), (SELECT MAX(role_id) FROM tb_roles));
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
