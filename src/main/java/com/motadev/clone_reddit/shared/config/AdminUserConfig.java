@@ -33,13 +33,12 @@ public class AdminUserConfig implements CommandLineRunner {
     @Transactional
     public void run(String... args) throws Exception {
 
-        var roleAdmin = roleRepository.findByName(RoleValues.ADMIN.name());
-
-        if (roleAdmin == null) {
-            var newRole = new Role();
-            newRole.setName(RoleValues.ADMIN.name());
-            roleRepository.save(newRole);
-        }
+        Role roleAdmin = roleRepository.findByName(RoleValues.ADMIN.name())
+                .orElseGet(() -> {
+                    var newRole = new Role();
+                    newRole.setName(RoleValues.ADMIN.name());
+                    return roleRepository.save(newRole);
+                });
 
         var userAdmin = userRepository.findByUsername("admin");
 
