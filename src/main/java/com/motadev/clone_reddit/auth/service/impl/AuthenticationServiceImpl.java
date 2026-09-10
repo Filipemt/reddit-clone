@@ -8,8 +8,10 @@ import com.motadev.clone_reddit.auth.repository.RoleRepository;
 import com.motadev.clone_reddit.auth.repository.UserRepository;
 import com.motadev.clone_reddit.auth.service.AuthenticationServiceI;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
+import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.crossstore.ChangeSetPersister;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -53,7 +55,8 @@ public class AuthenticationServiceImpl implements AuthenticationServiceI {
     @Override
     @Transactional
     public void register(LoginRequest loginRequest) {
-        var basicRole = roleRepository.findByName(RoleValues.BASIC.name());
+        var basicRole = roleRepository.findByName(RoleValues.BASIC.name())
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found."));
 
         var userFromDb = userRepository.findByUsername(loginRequest.username());
         if (userFromDb.isPresent()) {

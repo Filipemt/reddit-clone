@@ -1,4 +1,13 @@
 package com.motadev.clone_reddit.auth.dtos.request;
 
-public record LoginRequest(String username, String password) {
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record LoginRequest(
+        @NotBlank
+        String username,
+
+        @Size(min = 8, max = 72)
+        @NotBlank
+        String password) {
 }
