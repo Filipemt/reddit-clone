@@ -4,6 +4,8 @@ import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
 import com.motadev.clone_reddit.auth.entity.User;
 
-public interface TokenServiceI {
-    TokenData generateToken(User user, String refreshToken);
+public interface RefreshTokenServiceI {
+    RefreshToken createRefreshToken(User user);
+    TokenData refresh(String tokenValue);
+    void revoke(String tokenValue);
 }

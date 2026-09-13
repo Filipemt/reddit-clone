@@ -25,5 +25,6 @@ jwt:
     key: classpath:app.pub
   private:
     key: classpath:app.key
-  expiresIn: 900
+  expiresIn: 300
+  refreshExpirationMs: 86400000
   issuer: backend-reddit-clone

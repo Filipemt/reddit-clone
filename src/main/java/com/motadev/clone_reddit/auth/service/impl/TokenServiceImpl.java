@@ -1,6 +1,7 @@
 package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
+import com.motadev.clone_reddit.auth.entity.RefreshToken;
 import com.motadev.clone_reddit.auth.entity.Role;
 import com.motadev.clone_reddit.auth.entity.User;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
@@ -28,7 +29,7 @@ public class TokenServiceImpl implements TokenServiceI {
     }
 
     @Override
-    public TokenData generateToken(User user) {
+    public TokenData generateToken(User user, String refreshToken) {
         var now = Instant.now();
 
         var scope = user.getRoles()
@@ -46,6 +47,6 @@ public class TokenServiceImpl implements TokenServiceI {
 
         var jwtValue = jwtEncoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
 
-        return new TokenData(jwtValue, expiresIn);
+        return new TokenData(jwtValue, expiresIn, refreshToken);
     }
 }
