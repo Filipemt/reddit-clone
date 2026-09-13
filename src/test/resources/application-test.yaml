@@ -1,0 +1,5 @@
+jwt:
+  public:
+    key: classpath:test-app.pub
+  private:
+    key: classpath:test-app.key
