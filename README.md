@@ -196,9 +196,18 @@ As credenciais acima são apenas para desenvolvimento local (`application.yaml`)
 
 ## 🚧 Status atual
 
-**Fase: autenticação JWT funcional.**
+**Fase: autenticação JWT completa, com ciclo de vida de sessão.**
 
-A aplicação já tem estrutura Spring Boot com autenticação via JWT (OAuth2 Resource Server), PostgreSQL rodando via Docker, migrações Liquibase e seed de usuário admin. Próximos passos planejados: modelagem do domínio (comunidades, posts, comentários, votos) e autorização baseada em papéis (RBAC).
+A aplicação já tem estrutura Spring Boot com autenticação via JWT (OAuth2 Resource Server) e gerenciamento completo de sessão:
+
+- **Access token** (JWT assinado com RSA, 5 min): validação de assinatura, expiração e **issuer**.
+- **Refresh token** persistido (24 h): rotação, revogação e consumo de **uso único** (single-use).
+- Endpoints: `register`, `login`, `refresh` e `logout` (grupo `/authentication`).
+- Papéis seedados (`BASIC`, `ADMIN`), usuário admin inicial e claim `scope` já incluído no token.
+- PostgreSQL via Docker (desenvolvimento) e Testcontainers (testes), migrações Liquibase.
+- Suíte de testes unitários e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT e os fluxos E2E de autenticação.
+
+Próximos passos planejados: modelagem do domínio (comunidades, posts, comentários, votos) e autorização baseada em papéis e contexto (RBAC) — por exemplo, moderador agindo apenas na própria comunidade.
 
 ---
 
