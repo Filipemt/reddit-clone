@@ -203,30 +203,9 @@ class SecurityConfigIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
-    // GAP documentado: o JwtDecoder nao valida o issuer. Token com issuer errado e ACEITO
-    // porque a assinatura, o exp e o iat estao validos. Teste pendente abaixo exige o fix.
+    // O decoder valida o issuer: token assinado com a chave certa mas issuer forjado e REJEITADO.
     @Test
-    void tokenWithWrongIssuerIsCurrentlyAccepted() throws Exception {
-        Instant now = Instant.now();
-        String token = TestJwtBuilder.buildSignedToken(
-                TestJwtBuilder.loadPrivateKey(),
-                "evil-issuer",
-                UUID.randomUUID().toString(),
-                now,
-                now.plusSeconds(300),
-                "BASIC");
-
-        mockMvc.perform(delete("/authentication/logout")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType("application/json")
-                        .content(body("rt")))
-                .andExpect(status().isOk());
-    }
-
-    // PENDENTE: esperado que o decoder valide o issuer e rejeite. Falha caso habilitado hoje.
-    @org.junit.jupiter.api.Disabled("Pendente: configurar jwtDecoder().withIssuer(...) no SecurityConfig")
-    @Test
-    void tokenWithWrongIssuerShouldBeRejected() throws Exception {
+    void tokenWithWrongIssuerIsRejected() throws Exception {
         Instant now = Instant.now();
         String token = TestJwtBuilder.buildSignedToken(
                 TestJwtBuilder.loadPrivateKey(),
