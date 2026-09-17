@@ -28,12 +28,6 @@ public class AuthenticationController {
         return ResponseEntity.ok(authenticationServiceI.authenticate(request));
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<Void> register(@RequestBody @Valid LoginRequest loginRequest) {
-        authenticationServiceI.register(loginRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
-    }
-
     @PostMapping("/refresh")
     public ResponseEntity<TokenData> refresh(@RequestBody @Valid RefreshTokenRequest refreshToken) {
         return ResponseEntity.ok(refreshTokenServiceI.refresh(refreshToken.refreshToken()));

@@ -3,11 +3,11 @@ package com.motadev.clone_reddit.auth.service.impl;
 import com.motadev.clone_reddit.auth.dtos.request.LoginRequest;
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
-import com.motadev.clone_reddit.auth.entity.Role;
-import com.motadev.clone_reddit.auth.entity.User;
-import com.motadev.clone_reddit.auth.entity.enums.RoleValues;
-import com.motadev.clone_reddit.auth.repository.RoleRepository;
-import com.motadev.clone_reddit.auth.repository.UserRepository;
+import com.motadev.clone_reddit.user.entity.Role;
+import com.motadev.clone_reddit.user.entity.User;
+import com.motadev.clone_reddit.user.entity.enums.RoleValues;
+import com.motadev.clone_reddit.user.repository.RoleRepository;
+import com.motadev.clone_reddit.user.repository.UserRepository;
 import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
@@ -52,7 +52,7 @@ class AuthenticationServiceImplTest {
     @BeforeEach
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
-        service = new AuthenticationServiceImpl(userRepository, passwordEncoder, tokenService, roleRepository, refreshTokenService);
+        service = new AuthenticationServiceImpl(userRepository, passwordEncoder, tokenService, refreshTokenService);
     }
 
     private User userWithPassword(String username, String rawPassword) {

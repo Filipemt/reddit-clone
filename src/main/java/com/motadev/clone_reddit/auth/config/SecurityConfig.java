@@ -1,4 +1,4 @@
-package com.motadev.clone_reddit.shared.config;
+package com.motadev.clone_reddit.auth.config;
 
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -20,11 +20,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -46,9 +44,9 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/authentication/login",
-                                "/authentication/register",
-                                "/authentication/refresh"
-                        ).permitAll()
+                                "/authentication/refresh",
+                                "/users/register"
+                                ).permitAll()
 
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))

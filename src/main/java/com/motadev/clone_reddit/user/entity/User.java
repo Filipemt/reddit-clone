@@ -1,4 +1,4 @@
-package com.motadev.clone_reddit.auth.entity;
+package com.motadev.clone_reddit.user.entity;
 
 import com.motadev.clone_reddit.auth.dtos.request.LoginRequest;
 import jakarta.persistence.*;
@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Entity
 @Getter
@@ -32,7 +33,13 @@ public class User {
     )
     private Set<Role> roles;
 
-    public boolean isLoginCorrect(LoginRequest loginRequest, PasswordEncoder passwordEncoder) {
-        return passwordEncoder.matches(loginRequest.password(), this.password);
+    public boolean isLoginCorrect(String rawPassword, PasswordEncoder passwordEncoder) {
+        return passwordEncoder.matches(rawPassword, this.password);
+    }
+
+    public Set<String> getRoleNames() {
+        return this.roles.stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
     }
 }

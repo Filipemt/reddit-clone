@@ -1,4 +1,4 @@
-package com.motadev.clone_reddit.auth.entity;
+package com.motadev.clone_reddit.user.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;

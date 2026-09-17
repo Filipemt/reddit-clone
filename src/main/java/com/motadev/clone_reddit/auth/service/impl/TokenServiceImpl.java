@@ -1,9 +1,7 @@
 package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
-import com.motadev.clone_reddit.auth.entity.RefreshToken;
-import com.motadev.clone_reddit.auth.entity.Role;
-import com.motadev.clone_reddit.auth.entity.User;
+import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -29,17 +27,17 @@ public class TokenServiceImpl implements TokenServiceI {
     }
 
     @Override
-    public TokenData generateToken(User user, String refreshToken) {
+    public TokenData generateToken(UserAuthInfo authInfo, String refreshToken) {
         var now = Instant.now();
 
-        var scope = user.getRoles()
+        var scope = authInfo.roles()
                 .stream()
-                .map(Role::getName)
+                .sorted()
                 .collect(Collectors.joining(" "));
 
         var claims = JwtClaimsSet.builder()
                 .issuer(issuer)
-                .subject(user.getUserId().toString())
+                .subject(authInfo.userId().toString())
                 .issuedAt(now)
                 .claim("scope", scope)
                 .expiresAt(now.plusSeconds(this.expiresIn))

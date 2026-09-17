@@ -2,12 +2,13 @@ package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
-import com.motadev.clone_reddit.auth.entity.User;
+import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.auth.repository.RefreshTokenRepository;
 import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
+import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,23 +20,27 @@ import java.util.UUID;
 @Service
 @Slf4j
 public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
+
+    private final UserServiceI userService;
     private final RefreshTokenRepository refreshRepository;
     private final TokenServiceI tokenService;
 
     @Value("${jwt.refreshExpirationMs}")
     private long refreshExpirationMs;
 
-    public RefreshTokenServiceImpl(RefreshTokenRepository refreshRepository,
+    public RefreshTokenServiceImpl(UserServiceI userService,
+                                   RefreshTokenRepository refreshRepository,
                                    TokenServiceI tokenService) {
+        this.userService = userService;
         this.refreshRepository = refreshRepository;
         this.tokenService = tokenService;
     }
 
     @Override
     @Transactional
-    public RefreshToken createRefreshToken(User user) {
+    public RefreshToken createRefreshToken(UserAuthInfo authInfo) {
         var token = new RefreshToken();
-        token.setUser(user);
+        token.setUserId(authInfo.userId());
         token.setToken(UUID.randomUUID().toString());
         token.setExpiryDate(Instant.now().plusMillis(refreshExpirationMs));
 
@@ -48,11 +53,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
         RefreshToken oldRefresh = verify(tokenValue);
         revoke(oldRefresh.getToken());
 
-        RefreshToken newRefresh = createRefreshToken(oldRefresh.getUser());
+        UserAuthInfo authInfo = userService.findAuthInfoById(oldRefresh.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User no longer exists."));
 
-        TokenData newAccessToken = tokenService.generateToken(oldRefresh.getUser(), newRefresh.getToken());
-
-        return new TokenData(newAccessToken.accessToken(), newAccessToken.expiresIn(), newRefresh.getToken());
+        RefreshToken newRefresh = createRefreshToken(authInfo);
+        return tokenService.generateToken(authInfo, newRefresh.getToken());
     }
 
     @Override

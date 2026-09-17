@@ -1,10 +1,10 @@
 package com.motadev.clone_reddit.shared.config;
 
-import com.motadev.clone_reddit.auth.entity.Role;
-import com.motadev.clone_reddit.auth.entity.User;
-import com.motadev.clone_reddit.auth.entity.enums.RoleValues;
-import com.motadev.clone_reddit.auth.repository.RoleRepository;
-import com.motadev.clone_reddit.auth.repository.UserRepository;
+import com.motadev.clone_reddit.user.entity.Role;
+import com.motadev.clone_reddit.user.entity.User;
+import com.motadev.clone_reddit.user.entity.enums.RoleValues;
+import com.motadev.clone_reddit.user.repository.RoleRepository;
+import com.motadev.clone_reddit.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;

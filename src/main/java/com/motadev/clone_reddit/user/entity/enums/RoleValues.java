@@ -1,4 +1,4 @@
-package com.motadev.clone_reddit.auth.entity.enums;
+package com.motadev.clone_reddit.user.entity.enums;
 
 public enum RoleValues {
     BASIC(1L),

@@ -1,6 +1,6 @@
-package com.motadev.clone_reddit.auth.repository;
+package com.motadev.clone_reddit.user.repository;
 
-import com.motadev.clone_reddit.auth.entity.User;
+import com.motadev.clone_reddit.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

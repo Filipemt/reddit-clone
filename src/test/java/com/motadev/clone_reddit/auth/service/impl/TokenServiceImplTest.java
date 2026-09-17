@@ -1,8 +1,8 @@
 package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
-import com.motadev.clone_reddit.auth.entity.Role;
-import com.motadev.clone_reddit.auth.entity.User;
+import com.motadev.clone_reddit.user.entity.Role;
+import com.motadev.clone_reddit.user.entity.User;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.motadev.clone_reddit.support.TestJwtBuilder;

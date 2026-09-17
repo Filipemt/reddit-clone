@@ -2,7 +2,7 @@ package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
-import com.motadev.clone_reddit.auth.entity.User;
+import com.motadev.clone_reddit.user.entity.User;
 import com.motadev.clone_reddit.auth.repository.RefreshTokenRepository;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;

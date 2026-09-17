@@ -5,5 +5,4 @@ import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 
 public interface AuthenticationServiceI {
     TokenData authenticate(LoginRequest loginRequest);
-    void register(LoginRequest loginRequest);
 }
