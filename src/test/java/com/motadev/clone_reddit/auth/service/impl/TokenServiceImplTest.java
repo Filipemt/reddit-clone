@@ -1,8 +1,7 @@
 package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
-import com.motadev.clone_reddit.user.entity.Role;
-import com.motadev.clone_reddit.user.entity.User;
+import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.motadev.clone_reddit.support.TestJwtBuilder;
@@ -44,11 +43,8 @@ class TokenServiceImplTest {
         ReflectionTestUtils.setField(service, "issuer", ISSUER);
     }
 
-    private User userWithRoles(Role... roles) {
-        User user = new User();
-        user.setUserId(UUID.randomUUID());
-        user.setRoles(Set.of(roles));
-        return user;
+    private UserAuthInfo authInfo(String... roles) {
+        return new UserAuthInfo(UUID.randomUUID(), Set.of(roles));
     }
 
     private JWTClaimsSet claimsOf(String token) throws ParseException {
@@ -57,46 +53,46 @@ class TokenServiceImplTest {
 
     @Test
     void generateTokenProducesValidSignature() {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
 
-        String token = service.generateToken(user, "rt-1").accessToken();
+        String token = service.generateToken(authInfo, "rt-1").accessToken();
 
         Jwt jwt = jwtDecoder.decode(token);
-        assertThat(jwt.getSubject()).isEqualTo(user.getUserId().toString());
+        assertThat(jwt.getSubject()).isEqualTo(authInfo.userId().toString());
     }
 
     @Test
     void generateTokenSetsIssuer() throws ParseException {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
 
-        String token = service.generateToken(user, "rt-1").accessToken();
+        String token = service.generateToken(authInfo, "rt-1").accessToken();
 
         assertThat(claimsOf(token).getIssuer()).isEqualTo(ISSUER);
     }
 
     @Test
     void generateTokenUsesUserIdAsSubject() throws ParseException {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
 
-        String token = service.generateToken(user, "rt-1").accessToken();
+        String token = service.generateToken(authInfo, "rt-1").accessToken();
 
-        assertThat(claimsOf(token).getSubject()).isEqualTo(user.getUserId().toString());
+        assertThat(claimsOf(token).getSubject()).isEqualTo(authInfo.userId().toString());
     }
 
     @Test
     void generateTokenSetsScopeFromSingleRole() throws ParseException {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
 
-        String token = service.generateToken(user, "rt-1").accessToken();
+        String token = service.generateToken(authInfo, "rt-1").accessToken();
 
         assertThat(claimsOf(token).getStringClaim("scope")).isEqualTo("BASIC");
     }
 
     @Test
     void generateTokenSetsScopeFromMultipleRoles() throws ParseException {
-        User user = userWithRoles(role("BASIC"), role("ADMIN"));
+        UserAuthInfo authInfo = authInfo("BASIC", "ADMIN");
 
-        String token = service.generateToken(user, "rt-1").accessToken();
+        String token = service.generateToken(authInfo, "rt-1").accessToken();
 
         String[] scope = claimsOf(token).getStringClaim("scope").split(" ");
         assertThat(scope).containsExactlyInAnyOrder("BASIC", "ADMIN");
@@ -104,11 +100,9 @@ class TokenServiceImplTest {
 
     @Test
     void generateTokenHandlesUserWithoutRoles() throws ParseException {
-        User user = new User();
-        user.setUserId(UUID.randomUUID());
-        user.setRoles(Set.of());
+        UserAuthInfo authInfo = authInfo();
 
-        String token = service.generateToken(user, "rt-1").accessToken();
+        String token = service.generateToken(authInfo, "rt-1").accessToken();
 
         assertThat(claimsOf(token).getStringClaim("scope")).isEqualTo("");
     }
@@ -116,10 +110,10 @@ class TokenServiceImplTest {
     // O exp deve respeitar jwt.expiresIn (300s). JWT grava timestamps em segundos, entao usa tolerancia de 1s.
     @Test
     void generateTokenExpirationMatchesConfiguredTtl() throws ParseException {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
         Instant before = Instant.now();
 
-        TokenData data = service.generateToken(user, "rt-1");
+        TokenData data = service.generateToken(authInfo, "rt-1");
         Instant after = Instant.now();
 
         var claims = claimsOf(data.accessToken());
@@ -131,9 +125,9 @@ class TokenServiceImplTest {
 
     @Test
     void generateTokenReflectsRefreshTokenInResponse() {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
 
-        TokenData data = service.generateToken(user, "rt-xyz");
+        TokenData data = service.generateToken(authInfo, "rt-xyz");
 
         assertThat(data.refreshToken()).isEqualTo("rt-xyz");
     }
@@ -142,10 +136,10 @@ class TokenServiceImplTest {
     // para o mesmo usuario sao byte-a-byte identicos. Isso impossibilita revogar um access token individual.
     @Test
     void generateTokenProducesIdenticalTokensWithinSameSecond() {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
 
-        String token1 = service.generateToken(user, "rt-1").accessToken();
-        String token2 = service.generateToken(user, "rt-2").accessToken();
+        String token1 = service.generateToken(authInfo, "rt-1").accessToken();
+        String token2 = service.generateToken(authInfo, "rt-2").accessToken();
 
         assertThat(token1).isEqualTo(token2);
     }
@@ -155,17 +149,11 @@ class TokenServiceImplTest {
     @org.junit.jupiter.api.Disabled("Pendente: implementar jti no TokenServiceImpl")
     @Test
     void generateTokenProducesUniqueTokensPerCall() {
-        User user = userWithRoles(role("BASIC"));
+        UserAuthInfo authInfo = authInfo("BASIC");
 
-        String token1 = service.generateToken(user, "rt-1").accessToken();
-        String token2 = service.generateToken(user, "rt-2").accessToken();
+        String token1 = service.generateToken(authInfo, "rt-1").accessToken();
+        String token2 = service.generateToken(authInfo, "rt-2").accessToken();
 
         assertThat(token1).isNotEqualTo(token2);
-    }
-
-    private Role role(String name) {
-        Role role = new Role();
-        role.setName(name);
-        return role;
     }
 }

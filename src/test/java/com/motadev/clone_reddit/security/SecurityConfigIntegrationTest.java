@@ -79,7 +79,7 @@ class SecurityConfigIntegrationTest {
     // (aqui o 400 vem da validacao do DTO, provando que passou pela security).
     @Test
     void registerIsAccessibleWithoutAuthentication() throws Exception {
-        mockMvc.perform(post("/authentication/register")
+        mockMvc.perform(post("/users/register")
                         .contentType("application/json")
                         .content("""
                                 {"username":"", "password":"password123"}
@@ -87,8 +87,8 @@ class SecurityConfigIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
-    // Login sem token chega ao service: usuario desconhecido gera o 401 padrao do
-    // BadCredentialsExceptionHandler (corpo JSON). Isso prova que nao foi a
+    // Login sem token chega ao service: usuario desconhecido gera o 422 da
+    // ResourceInvalidException handler (corpo JSON). Isso prova que nao foi a
     // SecurityFilterChain que bloqueou (o 401 de security nao teria essa mensagem).
     @Test
     void loginIsAccessibleWithoutAuthentication() throws Exception {
@@ -97,8 +97,8 @@ class SecurityConfigIntegrationTest {
                         .content("""
                                 {"username":"carol", "password":"password123"}
                                 """))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("User or Password is invalid."));
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message").value("User or Password Invalid."));
     }
 
     @Test

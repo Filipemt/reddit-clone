@@ -53,7 +53,7 @@ class AuthenticationFlowIntegrationTest {
     }
 
     private ResponseEntity<Void> register(String username, String password) {
-        return rest.exchange("/authentication/register", HttpMethod.POST,
+        return rest.exchange("/users/register", HttpMethod.POST,
                 new HttpEntity<>(Map.of("username", username, "password", password), jsonHeaders()),
                 Void.class);
     }
@@ -116,14 +116,14 @@ class AuthenticationFlowIntegrationTest {
     }
 
     @Test
-    void loginWithWrongPasswordReturnsUnauthorized() {
+    void loginWithWrongPasswordReturnsUnprocessableEntity() {
         String username = uniqueUser();
         register(username, "password123");
 
         ResponseEntity<Map> response = loginRaw(username, "wrongpass1");
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(response.getBody().get("message")).isEqualTo("User or Password is invalid.");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+        assertThat(response.getBody().get("message")).isEqualTo("User or Password Invalid.");
     }
 
     // Anti-enumeracao: usuario inexistente e senha errada retornam a MESMA mensagem de erro.
@@ -135,8 +135,8 @@ class AuthenticationFlowIntegrationTest {
         ResponseEntity<Map> unknownUser = loginRaw("definitively_not_registered", "password123");
         ResponseEntity<Map> wrongPassword = loginRaw(username, "wrongpass1");
 
-        assertThat(unknownUser.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(wrongPassword.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(unknownUser.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+        assertThat(wrongPassword.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(unknownUser.getBody().get("message")).isEqualTo(wrongPassword.getBody().get("message"));
     }
 
@@ -198,7 +198,7 @@ class AuthenticationFlowIntegrationTest {
 
         // O usuario com senha invalida nao deve ser criado: login nao faz sucesso.
         ResponseEntity<Map> login = loginRaw(username, "password123");
-        assertThat(login.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(login.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     // BUG DOCUMENTADO: o admin seedado tem senha "123", abaixo do minimo de 8 caracteres
