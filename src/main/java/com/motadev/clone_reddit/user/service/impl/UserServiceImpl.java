@@ -1,10 +1,14 @@
 package com.motadev.clone_reddit.user.service.impl;
 
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
+import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.user.convert.UserConvert;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
+import com.motadev.clone_reddit.user.entity.Role;
+import com.motadev.clone_reddit.user.entity.User;
+import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
 import com.motadev.clone_reddit.user.service.UserServiceI;
@@ -35,19 +39,20 @@ public class UserServiceImpl implements UserServiceI {
     @Override
     @Transactional
     public void register(UserRequestDTO userRequest) {
-        var userFromDb = userRepository.findByUsername(userRequest.username());
-        if (userFromDb.isPresent()) {
-            throw new ResourceAlreadyExists("Resource Already Exists.");
-        }
+        validateUniqueUser(userRequest);
+        Role basicRole = roleRepository.findByName(RoleValues.BASIC.name())
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found."));
 
-        userRepository.save(
-                userConvert.convertDtoToEntity(userRequest)
-        );
+        String encodedPassword = passwordEncoder.encode(userRequest.password());
+        userRepository.save(userConvert.convertDtoToEntity(userRequest, encodedPassword, basicRole));
     }
 
     @Override
     public UserResponseDTO getUser(UUID userId) {
-        return userConvert.convertEntityToDTo(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found."));
+
+        return userConvert.convertEntityToDTo(user);
     }
 
     @Override
@@ -61,5 +66,14 @@ public class UserServiceImpl implements UserServiceI {
     public Optional<UserAuthInfo> findAuthInfoById(UUID userId) {
         return userRepository.findById(userId)
                 .map(user -> new UserAuthInfo(user.getUserId(), user.getRoleNames()));
+    }
+
+    private void validateUniqueUser(UserRequestDTO userRequest) {
+        if (userRepository.existsByEmail(userRequest.username())) {
+            throw new ResourceAlreadyExists("Resource Already Exists.");
+        }
+        if (userRepository.existsByEmail(userRequest.email())) {
+            throw new ResourceAlreadyExists("Resource Already Exists.");
+        }
     }
 }

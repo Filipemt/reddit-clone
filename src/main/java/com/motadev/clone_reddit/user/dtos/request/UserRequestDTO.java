@@ -5,8 +5,15 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record UserRequestDTO(
-        @NotBlank String username,
-        @Size(min = 8, max = 72) @NotBlank String password,
-        @Email @NotBlank String email
-        ) {
-}
+        @NotBlank(message = "Username is mandatory.")
+        @Size(min = 3, max = 20)
+        String username,
+
+        @Size(min = 8, max = 72)
+        @NotBlank(message = "Message is mandatory.")
+        String password,
+
+        @NotBlank
+        @Email(message = "E-mail is mandatory.")
+        String email
+        ) {}

@@ -1,18 +1,15 @@
 package com.motadev.clone_reddit.user.convert;
 
-import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
+import com.motadev.clone_reddit.user.entity.Role;
 import com.motadev.clone_reddit.user.entity.User;
-import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 @Component
 public class UserConvert {
@@ -28,30 +25,22 @@ public class UserConvert {
         this.userRepository = userRepository;
     }
 
-    public User convertDtoToEntity(UserRequestDTO dto) {
-        var basicRole = roleRepository.findByName(RoleValues.BASIC.name())
-                .orElseThrow(() -> new ResourceNotFoundException("Role not found."));
-
+    public User convertDtoToEntity(UserRequestDTO userRequest, String encodedPassword, Role basicRole) {
         User user = new User();
-        user.setUsername(dto.username());
-        user.setEmail(dto.email());
-        user.setPassword(passwordEncoder.encode(dto.password()));
+        user.setUsername(userRequest.username());
+        user.setEmail(userRequest.email());
+        user.setPassword(passwordEncoder.encode(userRequest.password()));
         user.setRoles(Set.of(basicRole));
 
         return user;
     }
 
-    public UserResponseDTO convertEntityToDTo(UUID userId) {
-        Optional<User> dbUser = userRepository.findById(userId);
-        if (dbUser.isEmpty()) {
-            throw new ResourceNotFoundException("User not found.");
-        }
-
+    public UserResponseDTO convertEntityToDTo(User user) {
         return new UserResponseDTO(
-                dbUser.get().getUserId(),
-                dbUser.get().getUsername(),
-                dbUser.get().getEmail(),
-                dbUser.get().getKarma()
+                user.getUserId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getKarma()
         );
     }
 }
