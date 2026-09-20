@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.user.service.impl;
 
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
+import com.motadev.clone_reddit.user.convert.UserConvert;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.user.entity.Role;
@@ -37,12 +38,14 @@ class UserServiceImplTest {
     private RoleRepository roleRepository;
 
     private BCryptPasswordEncoder passwordEncoder;
+    private UserConvert userConvert;
     private UserServiceImpl service;
 
     @BeforeEach
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
-        service = new UserServiceImpl(userRepository, roleRepository, passwordEncoder);
+        userConvert = new UserConvert(roleRepository, passwordEncoder);
+        service = new UserServiceImpl(userRepository, roleRepository, userConvert, passwordEncoder);
     }
 
     private Role role(String name) {
@@ -66,7 +69,7 @@ class UserServiceImplTest {
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
         when(userRepository.findByUsername("bob")).thenReturn(Optional.empty());
 
-        service.register(new UserRequestDTO("bob", "password123"));
+        service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
@@ -82,7 +85,7 @@ class UserServiceImplTest {
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
         when(userRepository.findByUsername("bob")).thenReturn(Optional.empty());
 
-        service.register(new UserRequestDTO("bob", "password123"));
+        service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
@@ -94,11 +97,10 @@ class UserServiceImplTest {
     @Test
     void registerRejectsDuplicateUsername() {
         Role basicRole = role(RoleValues.BASIC.name());
-        when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
         User existing = userWithRoles(UUID.randomUUID(), "bob", "password123", basicRole);
         when(userRepository.findByUsername("bob")).thenReturn(Optional.of(existing));
 
-        assertThatThrownBy(() -> service.register(new UserRequestDTO("bob", "password123")))
+        assertThatThrownBy(() -> service.register(new UserRequestDTO("bob", "password123", "bob@example.com")))
                 .isInstanceOf(ResourceAlreadyExists.class);
         verify(userRepository, never()).save(any());
     }
@@ -108,7 +110,7 @@ class UserServiceImplTest {
     void registerFailsWhenBasicRoleIsMissing() {
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.register(new UserRequestDTO("bob", "password123")))
+        assertThatThrownBy(() -> service.register(new UserRequestDTO("bob", "password123", "bob@example.com")))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(userRepository, never()).save(any());
     }
@@ -120,7 +122,7 @@ class UserServiceImplTest {
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
         when(userRepository.findByUsername("bob")).thenReturn(Optional.empty());
 
-        service.register(new UserRequestDTO("bob", "password123"));
+        service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
