@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/changes/20260909_create_users_and_roles_tables.xml
   - include:
       file: db/changelog/changes/20261009_create_refresh_token_table.xml
+  - include:
+      file: db/changelog/changes/20262009_alter_table_users.xml

@@ -1,11 +1,12 @@
 package com.motadev.clone_reddit.user.entity;
 
-import com.motadev.clone_reddit.auth.dtos.request.LoginRequest;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -23,7 +24,22 @@ public class User {
 
     @Column(unique = true)
     private String username;
+
+    @Column(unique = true)
+    private String email;
+
+    @Column
+    private Integer karma;
+
+    @Column
     private String password;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private boolean isActive = true;
 
     @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinTable(
