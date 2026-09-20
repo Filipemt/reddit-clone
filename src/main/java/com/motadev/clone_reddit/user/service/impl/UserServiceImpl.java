@@ -1,12 +1,10 @@
 package com.motadev.clone_reddit.user.service.impl;
 
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
-import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.user.convert.UserConvert;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
-import com.motadev.clone_reddit.user.entity.User;
-import com.motadev.clone_reddit.user.entity.enums.RoleValues;
+import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
 import com.motadev.clone_reddit.user.service.UserServiceI;
@@ -15,7 +13,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -46,6 +43,11 @@ public class UserServiceImpl implements UserServiceI {
         userRepository.save(
                 userConvert.convertDtoToEntity(userRequest)
         );
+    }
+
+    @Override
+    public UserResponseDTO getUser(UUID userId) {
+        return userConvert.convertEntityToDTo(userId);
     }
 
     @Override

@@ -1,14 +1,14 @@
 package com.motadev.clone_reddit.user.controller;
 
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
+import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/users")
@@ -24,5 +24,12 @@ public class UserController {
     public ResponseEntity<Void> register(@RequestBody @Valid UserRequestDTO userRequestDTO) {
         userService.register(userRequestDTO);
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @GetMapping("{userId}")
+    public ResponseEntity<UserResponseDTO> getUser(@PathVariable UUID userId) {
+        return ResponseEntity.ok(
+                userService.getUser(userId)
+        );
     }
 }
