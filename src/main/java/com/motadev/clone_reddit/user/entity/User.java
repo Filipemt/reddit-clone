@@ -29,16 +29,16 @@ public class User {
     private String email;
 
     @Column
-    private Integer karma;
+    private Integer karma = 0;
 
     @Column
     private String password;
 
     @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = true, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private boolean isActive = true;
 
     @ManyToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)

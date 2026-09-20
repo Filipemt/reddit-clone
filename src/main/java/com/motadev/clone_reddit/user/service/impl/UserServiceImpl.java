@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.user.service.impl;
 
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
+import com.motadev.clone_reddit.user.convert.UserConvert;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.user.entity.User;
@@ -21,33 +22,30 @@ import java.util.UUID;
 public class UserServiceImpl implements UserServiceI {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final UserConvert userConvert;
     private final PasswordEncoder passwordEncoder;
 
     public UserServiceImpl(UserRepository userRepository,
-                           RoleRepository roleRepository, PasswordEncoder
-                                   passwordEncoder) {
+                           RoleRepository roleRepository,
+                           UserConvert userConvert,
+                           PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.userConvert = userConvert;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     @Transactional
     public void register(UserRequestDTO userRequest) {
-        var basicRole = roleRepository.findByName(RoleValues.BASIC.name())
-                .orElseThrow(() -> new ResourceNotFoundException("Role not found."));
-
         var userFromDb = userRepository.findByUsername(userRequest.username());
         if (userFromDb.isPresent()) {
             throw new ResourceAlreadyExists("Resource Already Exists.");
         }
 
-        var user = new User();
-        user.setUsername(userRequest.username());
-        user.setPassword(passwordEncoder.encode(userRequest.password()));
-        user.setRoles(Set.of(basicRole));
-
-        userRepository.save(user);
+        userRepository.save(
+                userConvert.convertDtoToEntity(userRequest)
+        );
     }
 
     @Override
