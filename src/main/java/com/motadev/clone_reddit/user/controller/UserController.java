@@ -28,8 +28,12 @@ public class UserController {
 
     @GetMapping("{userId}")
     public ResponseEntity<UserResponseDTO> getUser(@PathVariable UUID userId) {
-        return ResponseEntity.ok(
-                userService.getUser(userId)
-        );
+        return ResponseEntity.ok(userService.getUserById(userId));
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> softDeleteMyAccount() {
+        userService.softDeleteMyAccount();
+        return ResponseEntity.noContent().build();
     }
 }

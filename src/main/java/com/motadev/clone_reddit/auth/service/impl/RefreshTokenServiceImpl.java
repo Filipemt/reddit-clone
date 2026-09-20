@@ -2,16 +2,17 @@ package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
-import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.auth.repository.RefreshTokenRepository;
 import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
+import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -28,7 +29,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
     @Value("${jwt.refreshExpirationMs}")
     private long refreshExpirationMs;
 
-    public RefreshTokenServiceImpl(UserServiceI userService,
+    public RefreshTokenServiceImpl(@Lazy UserServiceI userService,
                                    RefreshTokenRepository refreshRepository,
                                    TokenServiceI tokenService) {
         this.userService = userService;
@@ -68,6 +69,12 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
                     refreshToken.setRevoked(true);
                     refreshRepository.save(refreshToken);
                 });
+    }
+
+    @Override
+    @Transactional
+    public void revokeAllByUserId(UUID userId) {
+        refreshRepository.revokeAllByUserId(userId);
     }
 
     public RefreshToken verify(String tokenValue) {

@@ -67,7 +67,7 @@ class UserServiceImplTest {
     void registerSavesUserWithHashedPasswordAndBasicRole() {
         Role basicRole = role(RoleValues.BASIC.name());
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
-        when(userRepository.findByUsername("bob")).thenReturn(Optional.empty());
+        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.empty());
 
         service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
@@ -83,7 +83,7 @@ class UserServiceImplTest {
     void registerDoesNotStorePlaintextPassword() {
         Role basicRole = role(RoleValues.BASIC.name());
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
-        when(userRepository.findByUsername("bob")).thenReturn(Optional.empty());
+        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.empty());
 
         service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
@@ -98,7 +98,7 @@ class UserServiceImplTest {
     void registerRejectsDuplicateUsername() {
         Role basicRole = role(RoleValues.BASIC.name());
         User existing = userWithRoles(UUID.randomUUID(), "bob", "password123", basicRole);
-        when(userRepository.findByUsername("bob")).thenReturn(Optional.of(existing));
+        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> service.register(new UserRequestDTO("bob", "password123", "bob@example.com")))
                 .isInstanceOf(ResourceAlreadyExists.class);
@@ -120,7 +120,7 @@ class UserServiceImplTest {
     void registerNeverAssignsAdminRole() {
         Role basicRole = role(RoleValues.BASIC.name());
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
-        when(userRepository.findByUsername("bob")).thenReturn(Optional.empty());
+        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.empty());
 
         service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
@@ -135,7 +135,7 @@ class UserServiceImplTest {
     void validateCredentialsReturnsAuthInfoWhenPasswordMatches() {
         Role basicRole = role(RoleValues.BASIC.name());
         User user = userWithRoles(UUID.nameUUIDFromBytes("alice".getBytes()), "alice", "password123", basicRole);
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(userRepository.findByUsernameAndIsActiveTrue("alice")).thenReturn(Optional.of(user));
 
         Optional<UserAuthInfo> result = service.validateCredentials("alice", "password123");
 
@@ -148,7 +148,7 @@ class UserServiceImplTest {
     void validateCredentialsEmptyWhenPasswordIsWrong() {
         Role basicRole = role(RoleValues.BASIC.name());
         User user = userWithRoles(UUID.randomUUID(), "alice", "password123", basicRole);
-        when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
+        when(userRepository.findByUsernameAndIsActiveTrue("alice")).thenReturn(Optional.of(user));
 
         Optional<UserAuthInfo> result = service.validateCredentials("alice", "wrongpass");
 
@@ -157,7 +157,7 @@ class UserServiceImplTest {
 
     @Test
     void validateCredentialsEmptyWhenUsernameIsUnknown() {
-        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+        when(userRepository.findByUsernameAndIsActiveTrue("ghost")).thenReturn(Optional.empty());
 
         Optional<UserAuthInfo> result = service.validateCredentials("ghost", "password123");
 

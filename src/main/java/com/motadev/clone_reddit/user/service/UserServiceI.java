@@ -9,7 +9,8 @@ import java.util.UUID;
 
 public interface UserServiceI {
     void register(UserRequestDTO userRequestDTO);
-    UserResponseDTO getUser(UUID userId);
+    UserResponseDTO getUserById(UUID userId);
     Optional<UserAuthInfo> validateCredentials(String username, String rawPassword);
     Optional<UserAuthInfo> findAuthInfoById(UUID userId);
+    void softDeleteMyAccount();
 }

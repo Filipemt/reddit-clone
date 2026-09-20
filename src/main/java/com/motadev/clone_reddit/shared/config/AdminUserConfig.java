@@ -40,7 +40,7 @@ public class AdminUserConfig implements CommandLineRunner {
                     return roleRepository.save(newRole);
                 });
 
-        var userAdmin = userRepository.findByUsername("admin");
+        var userAdmin = userRepository.findByUsernameAndIsActiveTrue("admin");
 
         userAdmin.ifPresentOrElse(
                 user -> {

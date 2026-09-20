@@ -35,7 +35,7 @@ public class UserConvert {
         return user;
     }
 
-    public UserResponseDTO convertEntityToDTo(User user) {
+    public UserResponseDTO convertEntityToDto(User user) {
         return new UserResponseDTO(
                 user.getUserId(),
                 user.getUsername(),
