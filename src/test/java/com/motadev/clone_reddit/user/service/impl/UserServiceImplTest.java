@@ -1,23 +1,32 @@
 package com.motadev.clone_reddit.user.service.impl;
 
+import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
+import com.motadev.clone_reddit.shared.exception.UnauthorizedException;
 import com.motadev.clone_reddit.user.convert.UserConvert;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
+import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
 import com.motadev.clone_reddit.user.entity.Role;
 import com.motadev.clone_reddit.user.entity.User;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +45,8 @@ class UserServiceImplTest {
     private UserRepository userRepository;
     @Mock
     private RoleRepository roleRepository;
+    @Mock
+    private RefreshTokenServiceI refreshTokenService;
 
     private BCryptPasswordEncoder passwordEncoder;
     private UserConvert userConvert;
@@ -44,8 +55,21 @@ class UserServiceImplTest {
     @BeforeEach
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
-        userConvert = new UserConvert(roleRepository, passwordEncoder);
-        service = new UserServiceImpl(userRepository, roleRepository, userConvert, passwordEncoder);
+        userConvert = new UserConvert(roleRepository, passwordEncoder, userRepository);
+        service = new UserServiceImpl(userRepository, roleRepository, userConvert, refreshTokenService, passwordEncoder);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void setAuthenticatedUser(UUID userId) {
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                userId.toString(),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_BASIC")));
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
     private Role role(String name) {
@@ -67,7 +91,8 @@ class UserServiceImplTest {
     void registerSavesUserWithHashedPasswordAndBasicRole() {
         Role basicRole = role(RoleValues.BASIC.name());
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
-        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.empty());
+        when(userRepository.existsByUsername("bob")).thenReturn(false);
+        when(userRepository.existsByEmail("bob@example.com")).thenReturn(false);
 
         service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
@@ -83,7 +108,8 @@ class UserServiceImplTest {
     void registerDoesNotStorePlaintextPassword() {
         Role basicRole = role(RoleValues.BASIC.name());
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
-        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.empty());
+        when(userRepository.existsByUsername("bob")).thenReturn(false);
+        when(userRepository.existsByEmail("bob@example.com")).thenReturn(false);
 
         service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
@@ -96,9 +122,17 @@ class UserServiceImplTest {
 
     @Test
     void registerRejectsDuplicateUsername() {
-        Role basicRole = role(RoleValues.BASIC.name());
-        User existing = userWithRoles(UUID.randomUUID(), "bob", "password123", basicRole);
-        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.of(existing));
+        when(userRepository.existsByUsername("bob")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.register(new UserRequestDTO("bob", "password123", "bob@example.com")))
+                .isInstanceOf(ResourceAlreadyExists.class);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void registerRejectsDuplicateEmail() {
+        when(userRepository.existsByUsername("bob")).thenReturn(false);
+        when(userRepository.existsByEmail("bob@example.com")).thenReturn(true);
 
         assertThatThrownBy(() -> service.register(new UserRequestDTO("bob", "password123", "bob@example.com")))
                 .isInstanceOf(ResourceAlreadyExists.class);
@@ -120,7 +154,8 @@ class UserServiceImplTest {
     void registerNeverAssignsAdminRole() {
         Role basicRole = role(RoleValues.BASIC.name());
         when(roleRepository.findByName(RoleValues.BASIC.name())).thenReturn(Optional.of(basicRole));
-        when(userRepository.findByUsernameAndIsActiveTrue("bob")).thenReturn(Optional.empty());
+        when(userRepository.existsByUsername("bob")).thenReturn(false);
+        when(userRepository.existsByEmail("bob@example.com")).thenReturn(false);
 
         service.register(new UserRequestDTO("bob", "password123", "bob@example.com"));
 
@@ -186,5 +221,63 @@ class UserServiceImplTest {
         Optional<UserAuthInfo> result = service.findAuthInfoById(userId);
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void getUserByIdReturnsDto() {
+        UUID userId = UUID.randomUUID();
+        User user = userWithRoles(userId, "alice", "password123", role(RoleValues.BASIC.name()));
+        user.setEmail("alice@example.com");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserResponseDTO dto = service.getUserById(userId);
+
+        assertThat(dto.userId()).isEqualTo(userId);
+        assertThat(dto.username()).isEqualTo("alice");
+        assertThat(dto.email()).isEqualTo("alice@example.com");
+        assertThat(dto.karma()).isZero();
+    }
+
+    @Test
+    void getUserByIdThrowsWhenUserDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getUserById(userId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void softDeleteMyAccountDeactivatesUserAndRevokesRefreshTokens() {
+        UUID userId = UUID.randomUUID();
+        User user = userWithRoles(userId, "alice", "password123", role(RoleValues.BASIC.name()));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        setAuthenticatedUser(userId);
+
+        service.softDeleteMyAccount();
+
+        assertThat(user.isActive()).isFalse();
+        verify(refreshTokenService).revokeAllByUserId(userId);
+    }
+
+    @Test
+    void softDeleteMyAccountThrowsWhenNotAuthenticated() {
+        SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> service.softDeleteMyAccount())
+                .isInstanceOf(UnauthorizedException.class);
+        verify(userRepository, never()).findById(any());
+        verify(refreshTokenService, never()).revokeAllByUserId(any());
+    }
+
+    @Test
+    void softDeleteMyAccountThrowsWhenUserDoesNotExist() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        setAuthenticatedUser(userId);
+
+        assertThatThrownBy(() -> service.softDeleteMyAccount())
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(refreshTokenService, never()).revokeAllByUserId(any());
     }
 }

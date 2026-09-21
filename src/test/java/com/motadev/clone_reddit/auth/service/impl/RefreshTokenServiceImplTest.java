@@ -206,6 +206,29 @@ class RefreshTokenServiceImplTest {
         verify(refreshRepository, never()).save(any(RefreshToken.class));
     }
 
+    @Test
+    void revokeAllByUserIdDelegatesToRepository() {
+        UUID userId = UUID.randomUUID();
+
+        service.revokeAllByUserId(userId);
+
+        verify(refreshRepository).revokeAllByUserId(userId);
+    }
+
+    @Test
+    void refreshFailsAfterRevokeAllByUserId() {
+        UserAuthInfo authInfo = authInfo();
+        RefreshToken oldToken = validToken("rt-old", authInfo.userId());
+        oldToken.setRevoked(true);
+
+        service.revokeAllByUserId(authInfo.userId());
+        when(refreshRepository.findByToken("rt-old")).thenReturn(Optional.of(oldToken));
+
+        assertThatThrownBy(() -> service.refresh("rt-old"))
+                .isInstanceOf(ResourceInvalidException.class);
+        verify(tokenService, never()).generateToken(any(), any());
+    }
+
     // Expira em exatamente refreshExpirationMs (24h) a partir da criacao.
     @Test
     void createRefreshTokenExpiryMatchesConfiguredTtl() {

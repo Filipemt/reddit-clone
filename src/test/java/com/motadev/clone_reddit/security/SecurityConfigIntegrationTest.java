@@ -183,6 +183,19 @@ class SecurityConfigIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void softDeleteWithoutTokenIsUnauthorized() throws Exception {
+        mockMvc.perform(delete("/users/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void softDeleteWithValidTokenPassesSecurityLayer() throws Exception {
+        mockMvc.perform(delete("/users/me")
+                        .header("Authorization", "Bearer " + validAccessToken()))
+                .andExpect(status().isNotFound());
+    }
+
     // Qualquer rota ainda nao implementada exige autenticacao.
     @Test
     void unknownRouteWithoutTokenIsUnauthorized() throws Exception {

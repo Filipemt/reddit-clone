@@ -54,7 +54,10 @@ class AuthenticationFlowIntegrationTest {
 
     private ResponseEntity<Void> register(String username, String password) {
         return rest.exchange("/users/register", HttpMethod.POST,
-                new HttpEntity<>(Map.of("username", username, "password", password), jsonHeaders()),
+                new HttpEntity<>(Map.of(
+                        "username", username,
+                        "email", username + "@example.com",
+                        "password", password), jsonHeaders()),
                 Void.class);
     }
 
@@ -84,6 +87,12 @@ class AuthenticationFlowIntegrationTest {
         return rest.exchange("/authentication/logout", HttpMethod.DELETE,
                 new HttpEntity<>(Map.of("tokenValue", refreshToken), headers),
                 Void.class);
+    }
+
+    private ResponseEntity<Void> softDeleteMyAccount(String accessToken) {
+        HttpHeaders headers = jsonHeaders();
+        headers.setBearerAuth(accessToken);
+        return rest.exchange("/users/me", HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
     }
 
     private String uniqueUser() {
@@ -199,6 +208,45 @@ class AuthenticationFlowIntegrationTest {
         // O usuario com senha invalida nao deve ser criado: login nao faz sucesso.
         ResponseEntity<Map> login = loginRaw(username, "password123");
         assertThat(login.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+    }
+
+    @Test
+    void softDeleteDeactivatesAccountAndRevokesSessions() {
+        String username = uniqueUser();
+        String password = "password123";
+        register(username, password);
+        TokenData tokens = login(username, password);
+
+        ResponseEntity<Void> deleted = softDeleteMyAccount(tokens.accessToken());
+        assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        ResponseEntity<Map> relogin = loginRaw(username, password);
+        assertThat(relogin.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+
+        ResponseEntity<TokenData> replayRefresh = refresh(tokens.refreshToken());
+        assertThat(replayRefresh.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+    }
+
+    @Test
+    void softDeletedUsernameCannotBeReused() {
+        String username = uniqueUser();
+        String password = "password123";
+        register(username, password);
+        TokenData tokens = login(username, password);
+
+        ResponseEntity<Void> deleted = softDeleteMyAccount(tokens.accessToken());
+        assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        ResponseEntity<Void> reRegister = register(username, password);
+        assertThat(reRegister.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void softDeleteWithoutTokenIsUnauthorized() {
+        ResponseEntity<Void> response = rest.exchange("/users/me", HttpMethod.DELETE,
+                new HttpEntity<>(jsonHeaders()), Void.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     // BUG DOCUMENTADO: o admin seedado tem senha "123", abaixo do minimo de 8 caracteres
