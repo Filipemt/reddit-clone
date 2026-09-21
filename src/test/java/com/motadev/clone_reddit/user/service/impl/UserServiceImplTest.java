@@ -34,6 +34,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,6 +55,7 @@ class UserServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         passwordEncoder = new BCryptPasswordEncoder();
         userConvert = new UserConvert(roleRepository, passwordEncoder, userRepository);
         service = new UserServiceImpl(userRepository, roleRepository, userConvert, refreshTokenService, passwordEncoder);

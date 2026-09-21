@@ -30,7 +30,21 @@ public class AuthenticationServiceImpl implements AuthenticationServiceI {
     @Override
     public TokenData authenticate(LoginRequest loginRequest) {
         var authInfo = userService.validateCredentials(loginRequest.username(), loginRequest.password())
-                .orElseThrow(() -> new ResourceInvalidException("User or Password Invalid."));
+                .orElseThrow(() -> {
+                    log.atWarn()
+                            .addKeyValue("event", "auth.login.failed")
+                            .addKeyValue("username", loginRequest.username())
+                            .setMessage("Authentication failed")
+                            .log();
+                    return new ResourceInvalidException("User or Password Invalid.");
+                });
+
+        log.atInfo()
+                .addKeyValue("event", "auth.login.success")
+                .addKeyValue("userId", authInfo.userId())
+                .addKeyValue("username", loginRequest.username())
+                .setMessage("User authenticated")
+                .log();
 
         var refreshToken = refreshTokenService.createRefreshToken(authInfo);
         return tokenService.generateToken(authInfo, refreshToken.getToken());

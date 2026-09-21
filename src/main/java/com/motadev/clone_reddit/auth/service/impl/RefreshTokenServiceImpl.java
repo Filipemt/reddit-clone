@@ -45,7 +45,15 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
         token.setToken(UUID.randomUUID().toString());
         token.setExpiryDate(Instant.now().plusMillis(refreshExpirationMs));
 
-        return refreshRepository.save(token);
+        RefreshToken saved = refreshRepository.save(token);
+
+        log.atDebug()
+                .addKeyValue("event", "auth.refresh.created")
+                .addKeyValue("userId", authInfo.userId())
+                .setMessage("Refresh token created")
+                .log();
+
+        return saved;
     }
 
     @Override
@@ -55,9 +63,23 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
         revoke(oldRefresh.getToken());
 
         UserAuthInfo authInfo = userService.findAuthInfoById(oldRefresh.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User no longer exists."));
+                .orElseThrow(() -> {
+                    log.atWarn()
+                            .addKeyValue("event", "auth.refresh.failed")
+                            .addKeyValue("userId", oldRefresh.getUserId())
+                            .setMessage("User for refresh token no longer exists")
+                            .log();
+                    return new ResourceNotFoundException("User no longer exists.");
+                });
 
         RefreshToken newRefresh = createRefreshToken(authInfo);
+
+        log.atInfo()
+                .addKeyValue("event", "auth.refresh.success")
+                .addKeyValue("userId", authInfo.userId())
+                .setMessage("Refresh token rotated")
+                .log();
+
         return tokenService.generateToken(authInfo, newRefresh.getToken());
     }
 
@@ -68,6 +90,12 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
                 .ifPresent(refreshToken -> {
                     refreshToken.setRevoked(true);
                     refreshRepository.save(refreshToken);
+
+                    log.atInfo()
+                            .addKeyValue("event", "auth.logout")
+                            .addKeyValue("userId", refreshToken.getUserId())
+                            .setMessage("Refresh token revoked")
+                            .log();
                 });
     }
 
@@ -75,13 +103,30 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
     @Transactional
     public void revokeAllByUserId(UUID userId) {
         refreshRepository.revokeAllByUserId(userId);
+
+        log.atInfo()
+                .addKeyValue("event", "user.account.deleted.tokens_revoked")
+                .addKeyValue("userId", userId)
+                .setMessage("All refresh tokens revoked for user")
+                .log();
     }
 
     public RefreshToken verify(String tokenValue) {
         RefreshToken token = refreshRepository.findByToken(tokenValue)
-                .orElseThrow(() -> new ResourceNotFoundException("Refresh token not found"));
+                .orElseThrow(() -> {
+                    log.atWarn()
+                            .addKeyValue("event", "auth.refresh.failed")
+                            .setMessage("Refresh token not found")
+                            .log();
+                    return new ResourceNotFoundException("Refresh token not found");
+                });
 
         if (token.isRevoked() || token.getExpiryDate().isBefore(Instant.now())) {
+            log.atWarn()
+                    .addKeyValue("event", "auth.refresh.failed")
+                    .addKeyValue("userId", token.getUserId())
+                    .setMessage("Refresh token invalid or expired")
+                    .log();
             throw new ResourceInvalidException("Refresh token invalid or expired");
         }
 

@@ -43,15 +43,23 @@ public class AdminUserConfig implements CommandLineRunner {
         var userAdmin = userRepository.findByUsernameAndIsActiveTrue("admin");
 
         userAdmin.ifPresentOrElse(
-                user -> {
-                    System.out.println("admin ja existe");
-                },
+                user -> log.atInfo()
+                        .addKeyValue("event", "admin.seed.skipped")
+                        .addKeyValue("username", "admin")
+                        .setMessage("Admin user already exists")
+                        .log(),
                 () -> {
                     var user = new User();
                     user.setUsername("admin");
                     user.setPassword(passwordEncoder.encode("123"));
                     user.setRoles(Set.of(roleAdmin));
                     userRepository.save(user);
+
+                    log.atInfo()
+                            .addKeyValue("event", "admin.seed.created")
+                            .addKeyValue("username", "admin")
+                            .setMessage("Admin user seeded")
+                            .log();
                 }
         );
     }

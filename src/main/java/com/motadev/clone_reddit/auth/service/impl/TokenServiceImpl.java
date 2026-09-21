@@ -3,6 +3,7 @@ package com.motadev.clone_reddit.auth.service.impl;
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class TokenServiceImpl implements TokenServiceI {
     private final JwtEncoder jwtEncoder;
 
@@ -44,6 +46,12 @@ public class TokenServiceImpl implements TokenServiceI {
                 .build();
 
         var jwtValue = jwtEncoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
+
+        log.atDebug()
+                .addKeyValue("event", "auth.jwt.generated")
+                .addKeyValue("userId", authInfo.userId())
+                .setMessage("JWT generated")
+                .log();
 
         return new TokenData(jwtValue, expiresIn, refreshToken);
     }

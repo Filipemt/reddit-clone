@@ -20,6 +20,11 @@ spring:
     enabled: true
     change-log: classpath:db/changelog/master.yaml
 
+logging:
+  structured:
+    format:
+      console: ecs
+
 jwt:
   public:
     key: classpath:app.pub
