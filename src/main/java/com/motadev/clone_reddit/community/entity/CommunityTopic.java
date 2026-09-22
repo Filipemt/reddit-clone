@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.UUID;
-
 @Entity
 @Getter
 @Setter
@@ -18,9 +16,9 @@ import java.util.UUID;
 public class CommunityTopic {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "topic_id", nullable = false)
-    private UUID topicId;
+    private Long topicId;
 
     @Column(length = 50, nullable = false)
     private String name;

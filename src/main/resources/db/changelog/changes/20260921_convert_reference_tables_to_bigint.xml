@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="convert-tb-community-status-to-bigint" author="motadev">
+        <dropForeignKeyConstraint baseTableName="tb_community"
+                                  constraintName="fk_community_status"/>
+
+        <dropPrimaryKey tableName="tb_community_status"
+                        constraintName="tb_community_status_pkey"/>
+
+        <dropColumn tableName="tb_community_status" columnName="status_id"/>
+
+        <addColumn tableName="tb_community_status">
+            <column name="status_id" type="BIGINT" autoIncrement="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <addPrimaryKey tableName="tb_community_status"
+                       columnNames="status_id"
+                       constraintName="tb_community_status_pkey"/>
+
+        <delete tableName="tb_community_status">
+            <where>1=1</where>
+        </delete>
+
+        <insert tableName="tb_community_status">
+            <column name="status_id" valueNumeric="1"/>
+            <column name="name" value="ACTIVE"/>
+        </insert>
+        <insert tableName="tb_community_status">
+            <column name="status_id" valueNumeric="2"/>
+            <column name="name" value="ARCHIVED"/>
+        </insert>
+        <insert tableName="tb_community_status">
+            <column name="status_id" valueNumeric="3"/>
+            <column name="name" value="BANNED"/>
+        </insert>
+
+        <sql dbms="postgresql">
+            SELECT setval(pg_get_serial_sequence('tb_community_status', 'status_id'), (SELECT MAX(status_id) FROM tb_community_status));
+        </sql>
+    </changeSet>
+
+    <changeSet id="convert-tb-community-types-to-bigint" author="motadev">
+        <dropForeignKeyConstraint baseTableName="tb_community"
+                                  constraintName="fk_community_type"/>
+
+        <dropPrimaryKey tableName="tb_community_types"
+                        constraintName="tb_community_types_pkey"/>
+
+        <dropColumn tableName="tb_community_types" columnName="type_id"/>
+
+        <addColumn tableName="tb_community_types">
+            <column name="type_id" type="BIGINT" autoIncrement="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <addPrimaryKey tableName="tb_community_types"
+                       columnNames="type_id"
+                       constraintName="tb_community_types_pkey"/>
+
+        <delete tableName="tb_community_types">
+            <where>1=1</where>
+        </delete>
+
+        <insert tableName="tb_community_types">
+            <column name="type_id" valueNumeric="1"/>
+            <column name="name" value="PUBLIC"/>
+        </insert>
+        <insert tableName="tb_community_types">
+            <column name="type_id" valueNumeric="2"/>
+            <column name="name" value="PRIVATE"/>
+        </insert>
+        <insert tableName="tb_community_types">
+            <column name="type_id" valueNumeric="3"/>
+            <column name="name" value="RESTRICTED"/>
+        </insert>
+
+        <sql dbms="postgresql">
+            SELECT setval(pg_get_serial_sequence('tb_community_types', 'type_id'), (SELECT MAX(type_id) FROM tb_community_types));
+        </sql>
+    </changeSet>
+
+    <changeSet id="convert-tb-community-topics-to-bigint" author="motadev">
+        <dropForeignKeyConstraint baseTableName="tb_community"
+                                  constraintName="fk_community_topic"/>
+
+        <dropPrimaryKey tableName="tb_community_topics"
+                        constraintName="tb_community_topics_pkey"/>
+
+        <dropColumn tableName="tb_community_topics" columnName="topic_id"/>
+
+        <addColumn tableName="tb_community_topics">
+            <column name="topic_id" type="BIGINT" autoIncrement="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <addPrimaryKey tableName="tb_community_topics"
+                       columnNames="topic_id"
+                       constraintName="tb_community_topics_pkey"/>
+
+        <delete tableName="tb_community_topics">
+            <where>1=1</where>
+        </delete>
+
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="1"/>
+            <column name="name" value="Games"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="2"/>
+            <column name="name" value="Technology"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="3"/>
+            <column name="name" value="Sport"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="4"/>
+            <column name="name" value="Music"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="5"/>
+            <column name="name" value="Science"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="6"/>
+            <column name="name" value="Movies"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="7"/>
+            <column name="name" value="Series"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="8"/>
+            <column name="name" value="Books"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="9"/>
+            <column name="name" value="Anime"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="10"/>
+            <column name="name" value="Art"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="11"/>
+            <column name="name" value="Photography"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="12"/>
+            <column name="name" value="Food &amp; Cooking"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="13"/>
+            <column name="name" value="Travel"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="14"/>
+            <column name="name" value="Fitness"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="15"/>
+            <column name="name" value="Programming"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="16"/>
+            <column name="name" value="Economy"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="17"/>
+            <column name="name" value="History"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="18"/>
+            <column name="name" value="Nature"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="19"/>
+            <column name="name" value="Design"/>
+        </insert>
+        <insert tableName="tb_community_topics">
+            <column name="topic_id" valueNumeric="20"/>
+            <column name="name" value="Health"/>
+        </insert>
+
+        <sql dbms="postgresql">
+            SELECT setval(pg_get_serial_sequence('tb_community_topics', 'topic_id'), (SELECT MAX(topic_id) FROM tb_community_topics));
+        </sql>
+    </changeSet>
+
+    <changeSet id="convert-tb-community-reference-columns-to-bigint" author="motadev">
+        <dropColumn tableName="tb_community" columnName="topic_id"/>
+        <addColumn tableName="tb_community">
+            <column name="topic_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="tb_community"
+                                 baseColumnNames="topic_id"
+                                 constraintName="fk_community_topic"
+                                 referencedTableName="tb_community_topics"
+                                 referencedColumnNames="topic_id"/>
+
+        <dropColumn tableName="tb_community" columnName="type_id"/>
+        <addColumn tableName="tb_community">
+            <column name="type_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="tb_community"
+                                 baseColumnNames="type_id"
+                                 constraintName="fk_community_type"
+                                 referencedTableName="tb_community_types"
+                                 referencedColumnNames="type_id"/>
+
+        <dropColumn tableName="tb_community" columnName="status_id"/>
+        <addColumn tableName="tb_community">
+            <column name="status_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="tb_community"
+                                 baseColumnNames="status_id"
+                                 constraintName="fk_community_status"
+                                 referencedTableName="tb_community_status"
+                                 referencedColumnNames="status_id"/>
+    </changeSet>
+
+</databaseChangeLog>
