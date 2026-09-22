@@ -17,3 +17,5 @@ databaseChangeLog:
       file: db/changelog/changes/20260921_create_tb_community.xml
   - include:
       file: db/changelog/changes/20260921_create_tb_community_rules.xml
+  - include:
+      file: db/changelog/changes/20260921_seed_reference_tables.xml
