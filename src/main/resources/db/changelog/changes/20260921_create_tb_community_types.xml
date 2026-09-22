@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="create-tb-community-types" author="motadev">
+        <createTable tableName="tb_community_types">
+            <column name="type_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(30)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_community_type_name"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

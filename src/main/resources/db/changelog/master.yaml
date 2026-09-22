@@ -5,3 +5,11 @@ databaseChangeLog:
       file: db/changelog/changes/20261009_create_refresh_token_table.xml
   - include:
       file: db/changelog/changes/20262009_alter_table_users.xml
+  - include:
+      file: db/changelog/changes/20260921_create_tb_community_status.xml
+  - include:
+      file: db/changelog/changes/20260921_create_tb_community_types.xml
+  - include:
+      file: db/changelog/changes/20260921_create_tb_community_topics.xml
+  - include:
+      file: db/changelog/changes/20260921_create_tb_media.xml
