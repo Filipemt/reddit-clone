@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="add-uuid-defaults" author="motadev">
+        <addDefaultValue tableName="tb_community_status" columnName="status_id" defaultValueComputed="gen_random_uuid()"/>
+        <addDefaultValue tableName="tb_community_types" columnName="type_id" defaultValueComputed="gen_random_uuid()"/>
+        <addDefaultValue tableName="tb_community_topics" columnName="topic_id" defaultValueComputed="gen_random_uuid()"/>
+        <addDefaultValue tableName="tb_media" columnName="media_id" defaultValueComputed="gen_random_uuid()"/>
+        <addDefaultValue tableName="tb_community" columnName="community_id" defaultValueComputed="gen_random_uuid()"/>
+        <addDefaultValue tableName="tb_community_rules" columnName="rule_id" defaultValueComputed="gen_random_uuid()"/>
+    </changeSet>
+
+</databaseChangeLog>

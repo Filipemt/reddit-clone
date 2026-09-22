@@ -7,109 +7,83 @@
 
     <changeSet id="seed-community-reference-tables" author="motadev">
         <insert tableName="tb_community_types">
-            <column name="type_id" value="11111111-0000-4000-8000-000000000001"/>
             <column name="name" value="PUBLIC"/>
         </insert>
         <insert tableName="tb_community_types">
-            <column name="type_id" value="11111111-0000-4000-8000-000000000002"/>
             <column name="name" value="PRIVATE"/>
         </insert>
         <insert tableName="tb_community_types">
-            <column name="type_id" value="11111111-0000-4000-8000-000000000003"/>
             <column name="name" value="RESTRICTED"/>
         </insert>
 
         <insert tableName="tb_community_status">
-            <column name="status_id" value="22222222-0000-4000-8000-000000000001"/>
             <column name="name" value="ACTIVE"/>
         </insert>
         <insert tableName="tb_community_status">
-            <column name="status_id" value="22222222-0000-4000-8000-000000000002"/>
             <column name="name" value="ARCHIVED"/>
         </insert>
         <insert tableName="tb_community_status">
-            <column name="status_id" value="22222222-0000-4000-8000-000000000003"/>
             <column name="name" value="BANNED"/>
         </insert>
 
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000001"/>
             <column name="name" value="Games"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000002"/>
             <column name="name" value="Technology"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000003"/>
             <column name="name" value="Sport"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000004"/>
             <column name="name" value="Music"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000005"/>
             <column name="name" value="Science"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000006"/>
             <column name="name" value="Movies"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000007"/>
             <column name="name" value="Series"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000008"/>
             <column name="name" value="Books"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000009"/>
             <column name="name" value="Anime"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000010"/>
             <column name="name" value="Art"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000011"/>
             <column name="name" value="Photography"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000012"/>
-            <column name="name" value="Food & Cooking"/>
+            <column name="name" value="Food &amp; Cooking"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000013"/>
             <column name="name" value="Travel"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000014"/>
             <column name="name" value="Fitness"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000015"/>
             <column name="name" value="Programming"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000016"/>
             <column name="name" value="Economy"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000017"/>
             <column name="name" value="History"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000018"/>
             <column name="name" value="Nature"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000019"/>
             <column name="name" value="Design"/>
         </insert>
         <insert tableName="tb_community_topics">
-            <column name="topic_id" value="33333333-0000-4000-8000-000000000020"/>
             <column name="name" value="Health"/>
         </insert>
     </changeSet>
