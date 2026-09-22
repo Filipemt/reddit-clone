@@ -13,3 +13,5 @@ databaseChangeLog:
       file: db/changelog/changes/20260921_create_tb_community_topics.xml
   - include:
       file: db/changelog/changes/20260921_create_tb_media.xml
+  - include:
+      file: db/changelog/changes/20260921_create_tb_community.xml
