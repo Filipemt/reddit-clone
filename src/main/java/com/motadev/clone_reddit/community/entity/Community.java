@@ -8,6 +8,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -69,11 +71,25 @@ public class Community {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
+            name = "banner_media_id",
+            foreignKey = @ForeignKey(name = "fk_community_banner")
+    )
+    private Media bannerMedia;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
             name = "owner_id",
             nullable = false,
             foreignKey = @ForeignKey(name = "fk_community_owner")
     )
     private User owner;
+
+    @OneToMany(
+            mappedBy = "community",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    private List<CommunityRules> rules = new ArrayList<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
