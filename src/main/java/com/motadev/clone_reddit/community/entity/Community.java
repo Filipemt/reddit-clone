@@ -1,6 +1,5 @@
 package com.motadev.clone_reddit.community.entity;
 
-import com.motadev.clone_reddit.user.entity.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -76,13 +75,8 @@ public class Community {
     )
     private Media bannerMedia;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "owner_id",
-            nullable = false,
-            foreignKey = @ForeignKey(name = "fk_community_owner")
-    )
-    private User owner;
+    @Column(name = "owner_id", nullable = false)
+    private UUID owner;
 
     @OneToMany(
             mappedBy = "community",

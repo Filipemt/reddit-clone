@@ -16,6 +16,8 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/20260921_create_tb_community.xml
   - include:
+      file: db/changelog/changes/20260923_drop_community_owner_fk.xml
+  - include:
       file: db/changelog/changes/20260921_create_tb_community_rules.xml
   - include:
       file: db/changelog/changes/20260921_add_banner_media_to_community.xml
