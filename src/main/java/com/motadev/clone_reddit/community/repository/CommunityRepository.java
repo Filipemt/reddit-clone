@@ -1,0 +1,11 @@
+package com.motadev.clone_reddit.community.repository;
+
+import com.motadev.clone_reddit.community.entity.Community;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.UUID;
+
+@Repository
+public interface CommunityRepository extends JpaRepository<Community, UUID> {
+}
