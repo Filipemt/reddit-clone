@@ -4,6 +4,7 @@ import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.exception.UnauthorizedException;
+import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import com.motadev.clone_reddit.user.convert.UserConvert;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
@@ -58,7 +59,8 @@ class UserServiceImplTest {
         lenient().when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         passwordEncoder = new BCryptPasswordEncoder();
         userConvert = new UserConvert(roleRepository, passwordEncoder, userRepository);
-        service = new UserServiceImpl(userRepository, roleRepository, userConvert, refreshTokenService, passwordEncoder);
+        service = new UserServiceImpl(userRepository, roleRepository, userConvert, refreshTokenService, passwordEncoder,
+                new AuthenticatedUserProvider());
     }
 
     @AfterEach

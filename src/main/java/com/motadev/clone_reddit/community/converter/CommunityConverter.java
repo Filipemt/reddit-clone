@@ -1,10 +1,12 @@
 package com.motadev.clone_reddit.community.converter;
 
 import com.motadev.clone_reddit.community.dtos.request.CreateCommunityRequestDTO;
+import com.motadev.clone_reddit.community.dtos.response.CommunityResponseDTO;
 import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.entity.CommunityStatus;
 import com.motadev.clone_reddit.community.entity.CommunityTopic;
 import com.motadev.clone_reddit.community.entity.CommunityType;
+import com.motadev.clone_reddit.community.entity.Media;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
@@ -32,5 +34,24 @@ public class CommunityConverter {
         community.setBannerMedia(null);
 
         return community;
+    }
+
+    public CommunityResponseDTO toResponseDto(Community community) {
+        Media media = community.getMedia();
+        Media bannerMedia = community.getBannerMedia();
+
+        return new CommunityResponseDTO(
+                community.getCommunityId(),
+                community.getName(),
+                community.getSlug(),
+                community.getDescription(),
+                community.getTopic().getTopicId(),
+                community.getTopic().getName(),
+                community.getType().getTypeId(),
+                community.getType().getName(),
+                media != null ? media.getMediaId() : null,
+                bannerMedia != null ? bannerMedia.getMediaId() : null,
+                community.getCreatedAt()
+        );
     }
 }

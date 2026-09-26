@@ -1,8 +1,10 @@
 package com.motadev.clone_reddit.community.controller;
 
 import com.motadev.clone_reddit.community.dtos.request.CreateCommunityRequestDTO;
+import com.motadev.clone_reddit.community.dtos.response.CommunityResponseDTO;
 import com.motadev.clone_reddit.community.service.CommunityServiceI;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,8 +22,7 @@ public class CommunityController {
     }
 
     @PostMapping
-    public ResponseEntity<Void> create(@RequestBody @Valid CreateCommunityRequestDTO requestDTO) {
-        communityServiceI.create(requestDTO);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<CommunityResponseDTO> create(@RequestBody @Valid CreateCommunityRequestDTO requestDTO) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(communityServiceI.create(requestDTO));
     }
 }

@@ -3,7 +3,7 @@ package com.motadev.clone_reddit.user.service.impl;
 import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
-import com.motadev.clone_reddit.shared.exception.UnauthorizedException;
+import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import com.motadev.clone_reddit.user.convert.UserConvert;
 import com.motadev.clone_reddit.user.dtos.request.UserRequestDTO;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
@@ -16,8 +16,6 @@ import com.motadev.clone_reddit.user.repository.UserRepository;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -32,17 +30,20 @@ public class UserServiceImpl implements UserServiceI {
     private final UserConvert userConvert;
     private final RefreshTokenServiceI refreshTokenService;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticatedUserProvider authenticatedUserProvider;
 
     public UserServiceImpl(UserRepository userRepository,
                            RoleRepository roleRepository,
                            UserConvert userConvert,
                            RefreshTokenServiceI refreshTokenService,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           AuthenticatedUserProvider authenticatedUserProvider) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userConvert = userConvert;
         this.refreshTokenService = refreshTokenService;
         this.passwordEncoder = passwordEncoder;
+        this.authenticatedUserProvider = authenticatedUserProvider;
     }
 
     @Override
@@ -80,16 +81,7 @@ public class UserServiceImpl implements UserServiceI {
     @Override
     @Transactional
     public void softDeleteMyAccount() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            log.atWarn()
-                    .addKeyValue("event", "user.account.delete.unauthorized")
-                    .setMessage("Unauthenticated attempt to delete an account")
-                    .log();
-            throw new UnauthorizedException("User is not authenticated.");
-        }
-
-        UUID userId = UUID.fromString(auth.getName());
+        UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
         User user = findUserOrThrow(userId);
 
         user.setActive(false);
@@ -137,6 +129,7 @@ public class UserServiceImpl implements UserServiceI {
     }
 
     private User findUserOrThrow(UUID userId) {
+        // Todo: Adicionar consulta para buscar usuários ativos
         return userRepository.findById(userId)
                 .orElseThrow(() -> {
                     log.atWarn()

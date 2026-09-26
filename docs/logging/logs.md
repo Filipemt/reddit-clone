@@ -49,7 +49,6 @@ O nível padrão é `INFO`; logo, os eventos `DEBUG` só aparecem se o pacote fo
 | `user.get.success` | INFO | `userId` | Busca de usuário por ID concluída (`GET /users/{id}`) |
 | `user.not_found` | WARN | `userId` | Busca por ID não encontrou usuário (404) |
 | `user.account.deleted` | INFO | `userId`, `username` | Soft delete da própria conta concluído (`DELETE /users/me`) |
-| `user.account.delete.unauthorized` | WARN | — | Tentativa de excluir conta sem autenticação |
 
 \* Quando o conflito é de email, o valor do email **não** é logado (PII); apenas `field=email`.
 
@@ -80,7 +79,13 @@ A senha nunca aparece em nenhum dos dois eventos.
 |---|---|---|---|
 | `auth.jwt.generated` | DEBUG | `userId` | JWT emitido. O valor do token nunca é logado |
 
-### 4.5 Tratamento de erros HTTP — `shared/exception/GlobalExceptionHandler.java`
+### 4.5 Usuário autenticado — `shared/security/AuthenticatedUserProvider.java`
+
+| Evento | Nível | Campos | Quando ocorre |
+|---|---|---|---|
+| `auth.user.unauthenticated` | WARN | — | Operação que exige o usuário logado (ex.: `DELETE /users/me`, `POST /communities`) foi chamada sem autenticação |
+
+### 4.6 Tratamento de erros HTTP — `shared/exception/GlobalExceptionHandler.java`
 
 Emitidos quando uma requisição resulta em erro tratado. Todos carregam `event`, `status` e `path`.
 
@@ -95,7 +100,7 @@ Emitidos quando uma requisição resulta em erro tratado. Todos carregam `event`
 | `http.method_not_allowed` | WARN | 405 | Método HTTP não suportado na rota |
 | `http.internal_error` | ERROR | 500 | Erro inesperado — inclui stack trace na causa |
 
-### 4.6 Seeding de admin — `shared/config/AdminUserConfig.java`
+### 4.7 Seeding de admin — `shared/config/AdminUserConfig.java`
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
