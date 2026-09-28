@@ -1,4 +1,4 @@
-package com.motadev.clone_reddit.community.entity;
+package com.motadev.clone_reddit.media.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
