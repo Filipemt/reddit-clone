@@ -61,22 +61,14 @@ public class Community {
     )
     private CommunityStatus status;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "media_id",
-            foreignKey = @ForeignKey(name = "fk_community_media")
-    )
-    private Media media;
+    @Column(name = "icon_media_id")
+    private UUID iconMediaId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "banner_media_id",
-            foreignKey = @ForeignKey(name = "fk_community_banner")
-    )
-    private Media bannerMedia;
+    @Column(name = "banner_media_id")
+    private UUID bannerMediaId;
 
     @Column(name = "owner_id", nullable = false)
-    private UUID owner;
+    private UUID ownerId;
 
     @OneToMany(
             mappedBy = "community",

@@ -27,3 +27,5 @@ databaseChangeLog:
       file: db/changelog/changes/20260921_add_uuid_defaults.xml
   - include:
       file: db/changelog/changes/20260921_seed_reference_tables.xml
+  - include:
+      file: db/changelog/changes/20260928_rename_community_media_to_icon.xml

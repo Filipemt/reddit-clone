@@ -12,7 +12,7 @@ public record CommunityResponseDTO(
     String topicName,
     Long typeId,
     String typeName,
-    UUID mediaId,
+    UUID iconMediaId,
     UUID bannerMediaId,
     LocalDateTime createdAt
     ) {

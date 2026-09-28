@@ -29,7 +29,7 @@ public record CreateCommunityRequestDTO(
         @NotNull(message = "Status ID is required.")
         Long statusId,
 
-        UUID mediaId,
+        UUID iconMediaId,
         UUID bannerMediaId
 
 ) {

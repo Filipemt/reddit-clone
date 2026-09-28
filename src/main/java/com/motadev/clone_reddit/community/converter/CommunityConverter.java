@@ -6,7 +6,6 @@ import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.entity.CommunityStatus;
 import com.motadev.clone_reddit.community.entity.CommunityTopic;
 import com.motadev.clone_reddit.community.entity.CommunityType;
-import com.motadev.clone_reddit.community.entity.Media;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
@@ -29,17 +28,14 @@ public class CommunityConverter {
         community.setTopic(entityManager.getReference(CommunityTopic.class, dto.topicId()));
         community.setType(entityManager.getReference(CommunityType.class, dto.typeId()));
         community.setStatus(entityManager.getReference(CommunityStatus.class, dto.statusId()));
-        community.setOwner(owner);
-        community.setMedia(null);
-        community.setBannerMedia(null);
+        community.setOwnerId(owner);
+        community.setIconMediaId(dto.iconMediaId());
+        community.setBannerMediaId(dto.bannerMediaId());
 
         return community;
     }
 
     public CommunityResponseDTO toResponseDto(Community community) {
-        Media media = community.getMedia();
-        Media bannerMedia = community.getBannerMedia();
-
         return new CommunityResponseDTO(
                 community.getCommunityId(),
                 community.getName(),
@@ -49,8 +45,8 @@ public class CommunityConverter {
                 community.getTopic().getName(),
                 community.getType().getTypeId(),
                 community.getType().getName(),
-                media != null ? media.getMediaId() : null,
-                bannerMedia != null ? bannerMedia.getMediaId() : null,
+                community.getIconMediaId(),
+                community.getBannerMediaId(),
                 community.getCreatedAt()
         );
     }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="rename-community-media-to-icon" author="motadev">
+        <dropForeignKeyConstraint baseTableName="tb_community"
+                                  constraintName="fk_community_media"/>
+
+        <renameColumn tableName="tb_community"
+                      oldColumnName="media_id"
+                      newColumnName="icon_media_id"
+                      columnDataType="UUID"/>
+
+        <addForeignKeyConstraint baseTableName="tb_community"
+                                 baseColumnNames="icon_media_id"
+                                 constraintName="fk_community_icon_media"
+                                 referencedTableName="tb_media"
+                                 referencedColumnNames="media_id"/>
+    </changeSet>
+
+</databaseChangeLog>
