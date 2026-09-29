@@ -4,8 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-import java.util.UUID;
-
 public record CreateCommunityRequestDTO(
 
         @NotBlank(message = "Community name is required.")
@@ -27,10 +25,6 @@ public record CreateCommunityRequestDTO(
         Long typeId,
 
         @NotNull(message = "Status ID is required.")
-        Long statusId,
-
-        UUID iconMediaId,
-        UUID bannerMediaId
-
+        Long statusId
 ) {
 }

@@ -1,7 +1,6 @@
 package com.motadev.clone_reddit.media.service.impl;
 
 import com.motadev.clone_reddit.media.converter.MediaConverter;
-import com.motadev.clone_reddit.media.dtos.request.MediaUploadRequest;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.entity.Media;
 import com.motadev.clone_reddit.media.repository.MediaRepository;
@@ -9,6 +8,7 @@ import com.motadev.clone_reddit.media.service.MediaServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -41,15 +41,19 @@ public class S3ServiceImpl implements MediaServiceI {
     }
 
     @Override
-    public MediaResponse upload(MediaUploadRequest request) {
-        String objectKey =  request.folder() + "/" + UUID.randomUUID();
+    public MediaResponse upload(MultipartFile file, String folder) {
+        // Todo: Adicionar validações de duplicidade de nome e slug da comunidade
+        // Todo: Adicionar validações de tamanhos de arquivos / extensões permitidas para ícone e banner
+
+        var request = mediaConverter.toUploadRequest(file, folder);
+        String objectKey = request.folder() + "/" + UUID.randomUUID();
 
         s3Client.putObject(
-          PutObjectRequest.builder()
-                  .bucket(bucketName)
-                  .key(objectKey)
-                  .contentType(request.contentType())
-                  .build(),
+                PutObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(objectKey)
+                        .contentType(request.contentType())
+                        .build(),
                 RequestBody.fromBytes(request.content())
         );
 

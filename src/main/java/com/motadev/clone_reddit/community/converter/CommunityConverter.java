@@ -20,7 +20,9 @@ public class CommunityConverter {
         this.entityManager = entityManager;
     }
 
-    public Community toEntity(CreateCommunityRequestDTO dto, UUID owner) {
+    public Community toEntity(CreateCommunityRequestDTO dto,
+                              UUID owner, UUID iconMediaId,
+                              UUID bannerMediaId) {
         Community community = new Community();
         community.setName(dto.name());
         community.setSlug(dto.slug());
@@ -29,8 +31,8 @@ public class CommunityConverter {
         community.setType(entityManager.getReference(CommunityType.class, dto.typeId()));
         community.setStatus(entityManager.getReference(CommunityStatus.class, dto.statusId()));
         community.setOwnerId(owner);
-        community.setIconMediaId(dto.iconMediaId());
-        community.setBannerMediaId(dto.bannerMediaId());
+        community.setIconMediaId(iconMediaId);
+        community.setBannerMediaId(bannerMediaId);
 
         return community;
     }

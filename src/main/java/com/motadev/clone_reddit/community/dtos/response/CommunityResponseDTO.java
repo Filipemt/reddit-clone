@@ -4,16 +4,16 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record CommunityResponseDTO(
-    UUID communityId,
-    String name,
-    String slug,
-    String description,
-    Long topicId,
-    String topicName,
-    Long typeId,
-    String typeName,
-    UUID iconMediaId,
-    UUID bannerMediaId,
-    LocalDateTime createdAt
+        UUID communityId,
+        String name,
+        String slug,
+        String description,
+        Long topicId,
+        String topicName,
+        Long typeId,
+        String typeName,
+        UUID iconMediaId,
+        UUID bannerMediaId,
+        LocalDateTime createdAt
     ) {
 }
