@@ -47,6 +47,8 @@ public class CommunityServiceImpl implements CommunityServiceI {
                                        MultipartFile iconFile,
                                        MultipartFile bannerFile) {
         UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
+        // Todo: Tratar exceções que estão sendo engolidas por erro 500
+        // Todo: Adicionar validações para duplicidade de nome e slug
         var owner = userServiceI.getUserById(userId);
 
         UUID iconMediaId = uploadIfPresent(iconFile, COMMUNITY_ICON_FOLDER);
@@ -60,6 +62,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
                         bannerMediaId
                 )
         );
+        // Todo: Refatoração para retornar URL da media ao invés de apenas o ID.
         return communityConverter.toResponseDto(saved);
     }
 

@@ -42,10 +42,9 @@ public class S3ServiceImpl implements MediaServiceI {
 
     @Override
     public MediaResponse upload(MultipartFile file, String folder) {
-        // Todo: Adicionar validações de duplicidade de nome e slug da comunidade
         // Todo: Adicionar validações de tamanhos de arquivos / extensões permitidas para ícone e banner
-
         var request = mediaConverter.toUploadRequest(file, folder);
+        // Todo: Melhorar a geração de objectKey para evitar colisões e permitir organização por data, tipo de mídia, etc.
         String objectKey = request.folder() + "/" + UUID.randomUUID();
 
         s3Client.putObject(
