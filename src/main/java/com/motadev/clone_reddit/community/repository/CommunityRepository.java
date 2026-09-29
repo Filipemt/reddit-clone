@@ -8,4 +8,6 @@ import java.util.UUID;
 
 @Repository
 public interface CommunityRepository extends JpaRepository<Community, UUID> {
+
+    boolean existsByNameOrSlug(String name, String slug);
 }

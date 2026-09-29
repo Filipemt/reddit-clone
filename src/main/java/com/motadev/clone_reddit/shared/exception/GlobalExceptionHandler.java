@@ -3,6 +3,7 @@ package com.motadev.clone_reddit.shared.exception;
 import com.motadev.clone_reddit.shared.exception.dtos.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -36,6 +37,13 @@ public class GlobalExceptionHandler {
                                                                 HttpServletRequest request) {
         logHandled("http.conflict", HttpStatus.CONFLICT, ex.getMessage(), request);
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrityViolation(DataIntegrityViolationException ex,
+                                                                 HttpServletRequest request) {
+        logHandled("http.conflict", HttpStatus.CONFLICT, "Resource Already Exists.", request);
+        return buildResponse(HttpStatus.CONFLICT, "Resource Already Exists.", request);
     }
 
     @ExceptionHandler({BadCredentialsException.class, UnauthorizedException.class})

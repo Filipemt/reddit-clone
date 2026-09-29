@@ -7,6 +7,7 @@ import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.community.service.CommunityServiceI;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
+import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
@@ -47,8 +48,9 @@ public class CommunityServiceImpl implements CommunityServiceI {
                                        MultipartFile iconFile,
                                        MultipartFile bannerFile) {
         UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
-        // Todo: Tratar exceções que estão sendo engolidas por erro 500
-        // Todo: Adicionar validações para duplicidade de nome e slug
+
+        validateCommunityUniqueness(createCommunityRequestDTO);
+
         var owner = userServiceI.getUserById(userId);
 
         UUID iconMediaId = uploadIfPresent(iconFile, COMMUNITY_ICON_FOLDER);
@@ -64,6 +66,18 @@ public class CommunityServiceImpl implements CommunityServiceI {
         );
         // Todo: Refatoração para retornar URL da media ao invés de apenas o ID.
         return communityConverter.toResponseDto(saved);
+    }
+
+    private void validateCommunityUniqueness(CreateCommunityRequestDTO createCommunityRequestDTO) {
+        if (communityRepository.existsByNameOrSlug(createCommunityRequestDTO.name(), createCommunityRequestDTO.slug())) {
+            log.atWarn()
+                    .addKeyValue("event", "community.create.conflict")
+                    .addKeyValue("name", createCommunityRequestDTO.name())
+                    .addKeyValue("slug", createCommunityRequestDTO.slug())
+                    .setMessage("Attempt to create a community with an existing name or slug")
+                    .log();
+            throw new ResourceAlreadyExists("Resource Already Exists.");
+        }
     }
 
     private UUID uploadIfPresent(MultipartFile file, String folder) {
