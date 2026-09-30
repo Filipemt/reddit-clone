@@ -21,7 +21,7 @@ public class StorageConfig {
     @Value("${aws.region}")
     private String region;
 
-    @Value("${aws.access-key-id}")
+    @Value("${aws.access-key}")
     private String accessKey;
 
     @Value("${aws.secret-access-key}")
