@@ -6,6 +6,7 @@ import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.entity.CommunityStatus;
 import com.motadev.clone_reddit.community.entity.CommunityTopic;
 import com.motadev.clone_reddit.community.entity.CommunityType;
+import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
@@ -37,7 +38,9 @@ public class CommunityConverter {
         return community;
     }
 
-    public CommunityResponseDTO toResponseDto(Community community) {
+    public CommunityResponseDTO toResponseDto(Community community,
+                                              String iconUrl,
+                                              String bannerUrl) {
         return new CommunityResponseDTO(
                 community.getCommunityId(),
                 community.getName(),
@@ -47,9 +50,13 @@ public class CommunityConverter {
                 community.getTopic().getName(),
                 community.getType().getTypeId(),
                 community.getType().getName(),
-                community.getIconMediaId(),
-                community.getBannerMediaId(),
+                toReference(community.getIconMediaId(), iconUrl),
+                toReference(community.getBannerMediaId(), bannerUrl),
                 community.getCreatedAt()
         );
+    }
+
+    private MediaResponse toReference(UUID mediaId, String url) {
+        return mediaId == null ? null : new MediaResponse(mediaId, url);
     }
 }

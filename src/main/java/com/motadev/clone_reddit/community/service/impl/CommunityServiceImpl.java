@@ -6,6 +6,7 @@ import com.motadev.clone_reddit.community.dtos.response.CommunityResponseDTO;
 import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.community.service.CommunityServiceI;
+import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
@@ -15,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
@@ -27,8 +30,11 @@ public class CommunityServiceImpl implements CommunityServiceI {
     private final CommunityConverter communityConverter;
     private final CommunityRepository communityRepository;
 
-    private static final String COMMUNITY_ICON_FOLDER = "communities/icons";
-    private static final String COMMUNITY_BANNER_FOLDER = "communities/banners";
+    private static final String COMMUNITY_ICON_FOLDER =
+            "communities/icons/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM"));
+
+    private static final String COMMUNITY_BANNER_FOLDER =
+            "communities/banners/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM"));
 
     public CommunityServiceImpl(CommunityRepository communityRepository,
                                 UserServiceI userServiceI,
@@ -50,22 +56,19 @@ public class CommunityServiceImpl implements CommunityServiceI {
         UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
 
         validateCommunityUniqueness(createCommunityRequestDTO);
-
         var owner = userServiceI.getUserById(userId);
 
-        UUID iconMediaId = uploadIfPresent(iconFile, COMMUNITY_ICON_FOLDER);
-        UUID bannerMediaId = uploadIfPresent(bannerFile, COMMUNITY_BANNER_FOLDER);
-
+        MediaResponse iconMedia = uploadIfPresent(iconFile, COMMUNITY_ICON_FOLDER);
+        MediaResponse bannerMedia = uploadIfPresent(bannerFile, COMMUNITY_BANNER_FOLDER);
         Community saved = communityRepository.saveAndFlush(
                 communityConverter.toEntity(
                         createCommunityRequestDTO,
                         owner.userId(),
-                        iconMediaId,
-                        bannerMediaId
+                        idOf(iconMedia),
+                        idOf(bannerMedia)
                 )
         );
-        // Todo: Refatoração para retornar URL da media ao invés de apenas o ID.
-        return communityConverter.toResponseDto(saved);
+        return communityConverter.toResponseDto(saved, urlOf(iconMedia), urlOf(bannerMedia));
     }
 
     private void validateCommunityUniqueness(CreateCommunityRequestDTO createCommunityRequestDTO) {
@@ -80,11 +83,19 @@ public class CommunityServiceImpl implements CommunityServiceI {
         }
     }
 
-    private UUID uploadIfPresent(MultipartFile file, String folder) {
+    private MediaResponse uploadIfPresent(MultipartFile file, String folder) {
         if (file == null || file.isEmpty()) {
             return null;
         }
 
-        return mediaServiceI.upload(file, folder).mediaId();
+        return mediaServiceI.upload(file, folder);
+    }
+
+    private UUID idOf(MediaResponse media) {
+        return media == null ? null : media.mediaId();
+    }
+
+    private String urlOf(MediaResponse media) {
+        return media == null ? null : media.url();
     }
 }
