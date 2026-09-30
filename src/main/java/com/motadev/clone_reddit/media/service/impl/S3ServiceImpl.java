@@ -47,8 +47,9 @@ public class S3ServiceImpl implements MediaServiceI {
     public MediaResponse upload(MultipartFile file, String folder) {
         // Todo: Adicionar validações de tamanhos de arquivos / extensões permitidas para ícone e banner
         var request = mediaConverter.toUploadRequest(file, folder);
-        // Todo: Melhorar a geração de objectKey para evitar colisões e permitir organização por data, tipo de mídia, etc.
-        String objectKey = request.folder() + "/" + UUID.randomUUID();
+
+        String extension = getFileExtension(file.getOriginalFilename());
+        String objectKey = request.folder() + "/" + UUID.randomUUID() + extension;
 
         s3Client.putObject(
                 PutObjectRequest.builder()
@@ -63,6 +64,13 @@ public class S3ServiceImpl implements MediaServiceI {
         mediaRepository.save(media);
 
         return mediaConverter.toResponse(media, getUrl(media.getMediaId()));
+    }
+
+    private static String getFileExtension(String originalFilename) {
+        if (originalFilename != null && originalFilename.contains(".")) {
+            return originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        return "";
     }
 
     @Override
