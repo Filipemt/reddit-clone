@@ -30,6 +30,9 @@ public class S3ServiceImpl implements MediaServiceI {
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
 
+    @Value("${aws.s3.presigned-url-expiration-seconds:3600}")
+    private long presignedUrlExpirationSeconds;
+
     public S3ServiceImpl(S3Client s3Client,
                          S3Presigner s3Presigner,
                          MediaRepository mediaRepository,
@@ -68,7 +71,7 @@ public class S3ServiceImpl implements MediaServiceI {
                 .orElseThrow(() -> new ResourceNotFoundException("Media not found"));
 
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(15))
+                .signatureDuration(Duration.ofSeconds(presignedUrlExpirationSeconds))
                 .getObjectRequest(GetObjectRequest.builder()
                         .bucket(media.getBucket())
                         .key(media.getObjectKey())

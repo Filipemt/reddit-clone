@@ -40,3 +40,4 @@ aws:
   region: ${AWS_REGION}
   s3:
     bucket-name: ${AWS_S3_BUCKET_NAME}
+    presigned-url-expiration-seconds: ${AWS_S3_PRESIGNED_URL_SECONDS}
