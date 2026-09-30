@@ -6,6 +6,7 @@ import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.entity.CommunityStatus;
 import com.motadev.clone_reddit.community.entity.CommunityTopic;
 import com.motadev.clone_reddit.community.entity.CommunityType;
+import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +21,9 @@ public class CommunityConverter {
         this.entityManager = entityManager;
     }
 
-    public Community toEntity(CreateCommunityRequestDTO dto, UUID owner) {
+    public Community toEntity(CreateCommunityRequestDTO dto,
+                              UUID owner, UUID iconMediaId,
+                              UUID bannerMediaId) {
         Community community = new Community();
         community.setName(dto.name());
         community.setSlug(dto.slug());
@@ -29,13 +32,15 @@ public class CommunityConverter {
         community.setType(entityManager.getReference(CommunityType.class, dto.typeId()));
         community.setStatus(entityManager.getReference(CommunityStatus.class, dto.statusId()));
         community.setOwnerId(owner);
-        community.setIconMediaId(dto.iconMediaId());
-        community.setBannerMediaId(dto.bannerMediaId());
+        community.setIconMediaId(iconMediaId);
+        community.setBannerMediaId(bannerMediaId);
 
         return community;
     }
 
-    public CommunityResponseDTO toResponseDto(Community community) {
+    public CommunityResponseDTO toResponseDto(Community community,
+                                              String iconUrl,
+                                              String bannerUrl) {
         return new CommunityResponseDTO(
                 community.getCommunityId(),
                 community.getName(),
@@ -45,9 +50,13 @@ public class CommunityConverter {
                 community.getTopic().getName(),
                 community.getType().getTypeId(),
                 community.getType().getName(),
-                community.getIconMediaId(),
-                community.getBannerMediaId(),
+                toReference(community.getIconMediaId(), iconUrl),
+                toReference(community.getBannerMediaId(), bannerUrl),
                 community.getCreatedAt()
         );
+    }
+
+    private MediaResponse toReference(UUID mediaId, String url) {
+        return mediaId == null ? null : new MediaResponse(mediaId, url);
     }
 }
