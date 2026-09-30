@@ -33,3 +33,11 @@ jwt:
   expiresIn: 300
   refreshExpirationMs: 86400000
   issuer: backend-reddit-clone
+
+aws:
+  access-key: ${AWS_ACCESS_KEY_ID}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  region: ${AWS_REGION}
+  s3:
+    bucket-name: ${AWS_S3_BUCKET_NAME}
+    presigned-url-expiration-seconds: ${AWS_S3_PRESIGNED_URL_SECONDS}
