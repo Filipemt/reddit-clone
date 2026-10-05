@@ -30,11 +30,8 @@ public class CommunityServiceImpl implements CommunityServiceI {
     private final CommunityConverter communityConverter;
     private final CommunityRepository communityRepository;
 
-    private static final String COMMUNITY_ICON_FOLDER =
-            "communities/icons/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM"));
-
-    private static final String COMMUNITY_BANNER_FOLDER =
-            "communities/banners/" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM"));
+    private static final DateTimeFormatter FOLDER_PERIOD_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy/MM");
 
     public CommunityServiceImpl(CommunityRepository communityRepository,
                                 UserServiceI userServiceI,
@@ -58,8 +55,9 @@ public class CommunityServiceImpl implements CommunityServiceI {
         validateCommunityUniqueness(createCommunityRequestDTO);
         var owner = userServiceI.getUserById(userId);
 
-        MediaResponse iconMedia = uploadIfPresent(iconFile, COMMUNITY_ICON_FOLDER);
-        MediaResponse bannerMedia = uploadIfPresent(bannerFile, COMMUNITY_BANNER_FOLDER);
+        MediaResponse iconMedia = uploadIfPresent(iconFile, communityIconFolder());
+        MediaResponse bannerMedia = uploadIfPresent(bannerFile, communityBannerFolder());
+
         Community saved = communityRepository.saveAndFlush(
                 communityConverter.toEntity(
                         createCommunityRequestDTO,
@@ -69,6 +67,14 @@ public class CommunityServiceImpl implements CommunityServiceI {
                 )
         );
         return communityConverter.toResponseDto(saved, urlOf(iconMedia), urlOf(bannerMedia));
+    }
+
+    private static String communityIconFolder() {
+        return "communities/icons/" + LocalDateTime.now().format(FOLDER_PERIOD_FORMATTER);
+    }
+
+    private static String communityBannerFolder() {
+        return "communities/banners/" + LocalDateTime.now().format(FOLDER_PERIOD_FORMATTER);
     }
 
     private void validateCommunityUniqueness(CreateCommunityRequestDTO createCommunityRequestDTO) {
