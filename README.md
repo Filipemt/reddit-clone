@@ -96,7 +96,7 @@ Cada funcionalidade do produto foi escolhida (ou vai naturalmente exigir) uma ou
 | Comunicação entre serviços | Microsserviços, timeout, retry, service discovery | ⬜ |
 | Processamento de mídia (upload) | Filas, processamento assíncrono, workers | 🟡 Upload síncrono direto no S3 feito; fila e worker não |
 | Recalculo de Hot score | Paralelismo/threads, jobs periódicos | ⬜ |
-| Transação distribuída (banco + object storage) | Consistência, compensação, outbox pattern | 🟡 Lacuna conhecida e registrada |
+| Transação distribuída (banco + object storage) | Consistência, compensação, outbox pattern | 🟡 Compensação no S3 implementada; outbox e GC de órfãos não |
 
 ---
 
@@ -137,9 +137,10 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 ### Armazenamento de mídia
 - **Decisão:** arquivos (imagem/vídeo) vão para object storage (S3, via AWS SDK v2); o banco de dados guarda apenas a referência (`tb_media`: bucket + object key + content type + tamanho).
 - **Motivo:** banco de dados não é otimizado para armazenar binários grandes; a API S3 permite o mesmo código em qualquer ambiente compatível.
-- **Na prática:** a chave do objeto é `{pasta}/{uuid}{extensão}`, com pasta segmentada por `yyyy/MM` (`communities/icons/...`, `communities/banners/...`). O UUID evita colisão e não expõe o nome original do arquivo.
+- **Na prática:** a chave do objeto é `{pasta}/{uuid}{extensão}`, com pasta segmentada por `yyyy/MM` (`communities/icons/...`, `communities/banners/...`). O UUID evita colisão e não expõe o nome original do arquivo. A extensão vem de uma allowlist validada, nunca do nome cru do cliente.
 - **Leitura:** URLs pré-assinadas (`S3Presigner`) com validade configurável em `AWS_S3_PRESIGNED_URL_SECONDS` — o domínio nunca persiste a URL, que expira.
-- **Ponto de atenção:** o upload acontece **fora** da transação do banco. Se o `save` falhar depois do `putObject`, o objeto fica órfão no bucket (compensação manual ainda não implementada).
+- **Atomicidade:** o `putObject` não participa da transação do banco. A camada de mídia registra uma `TransactionSynchronization` a cada upload e, no `afterCompletion`, apaga o objeto se a transação não confirmar. O registro em `tb_media` é revertido junto com o restante do trabalho, então banco e bucket convergem — inclusive quando a falha só é detectada no commit. Uma segunda janela é coberta dentro do próprio `upload`: se o `save` da mídia falhar depois do `putObject`, o objeto é apagado imediatamente, já que sem o registro ele seria inalcançável para qualquer compensação.
+- **Ponto de atenção:** se a JVM morrer entre o `putObject` e o commit, o objeto vira órfão e só um job de varredura (outbox pattern) poderia limpá-lo.
 
 ### Referências de comunidade: tabelas ou colunas de texto?
 - **Decisão:** tipo, status e tópico de uma comunidade são **entidades de referência** (`tb_community_types`, `tb_community_status`, `tb_community_topics`) com identidade `bigint`, e não colunas `VARCHAR` com `CHECK`.
@@ -289,14 +290,15 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 
 ### Testes
 
-Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação e o serviço de usuário (Testcontainers + PostgreSQL real).
+Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação e os serviços de usuário, mídia e comunidade (Testcontainers + PostgreSQL real).
 
 ### Dívidas e pontos de atenção conhecidos
 
-- **Sem validação de arquivo no upload:** hoje não há limite de tamanho, allowlist de extensão nem checagem do tipo real — o `content_type` é o declarado pelo cliente.
-- **Sem compensação entre S3 e banco:** o `putObject` ocorre fora da transação; se o `save` falhar, o objeto fica órfão no bucket.
-- **Sem testes para `community` e `media`:** a cobertura atual é de `auth` e `user`.
+- **Validação de arquivo crua:** o upload rejeita tamanho acima de `MEDIA_MAX_SIZE_BYTES` (5 MB) e combinações `content_type`/extensão fora das regras de `media.upload.types`, mas não inspeciona os *magic bytes* do arquivo — um JPEG renomeado de `.png` **e** declarado como `image/png` passa na validação. A checagem garante apenas que a declaração é *internamente consistente*, não que ela é verdadeira.
+- **Rollback do S3 sem retry:** a compensação roda de forma síncrona no mesmo thread da requisição e sem retentativas. Se o `deleteObject` falhar, o erro fica no log (`media.upload.rollback_failed`) e o objeto vira órfão.
+- **Sem job de purga de órfãos:** não há varredura periódica para localizar objetos no bucket sem registro em `tb_media` (outbox pattern).
 - **Sem endpoint de leitura de comunidade:** só existe a criação. Listagem, busca, regras, posts e moderação ainda não foram implementadas.
+- **Sem operação de delete de mídia:** o `deleteObject` existe apenas como compensação interna; não há como remover uma mídia pela API, e linhas em `tb_media` e objetos no bucket só crescem.
 - **`findUserOrThrow` não filtra `isActive`:** um usuário desativado ainda pode ser lido por id.
 - **Sem job de purga de refresh tokens** expirados/revogados; sem revogação de access token antes do `exp`.
 - **Sem cache de URL pré-assinada:** uma nova URL é assinada a cada leitura.

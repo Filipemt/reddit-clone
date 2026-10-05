@@ -98,6 +98,7 @@ Emitidos quando uma requisição resulta em erro tratado. Todos carregam `event`
 | `http.validation_failed` | WARN | 400 | Payload não passa nas validações de bean (`@Valid`) |
 | `http.malformed_body` | WARN | 400 | Corpo da requisição mal formado |
 | `http.method_not_allowed` | WARN | 405 | Método HTTP não suportado na rota |
+| `http.payload_too_large` | WARN | 413 | Upload acima de `spring.servlet.multipart.max-file-size` — o container rejeita antes do serviço, então este handler evita que a exceção caia no catch-all e vire 500 |
 | `http.internal_error` | ERROR | 500 | Erro inesperado — inclui stack trace na causa |
 
 ### 4.7 Seeding de admin — `shared/config/AdminUserConfig.java`
@@ -107,12 +108,25 @@ Emitidos quando uma requisição resulta em erro tratado. Todos carregam `event`
 | `admin.seed.skipped` | INFO | `username` | Usuário `admin` já existe na inicialização |
 | `admin.seed.created` | INFO | `username` | Usuário `admin` criado na inicialização |
 
+### 4.8 Mídia — `media/service/impl/S3ServiceImpl.java`
+
+Eventos da compensação do objeto no S3 quando a transação do banco não confirma. Carregam `mediaId` e `objectKey` para que um órfão seja localizável sem o registro em `tb_media`.
+
+| Evento | Nível | Campos | Quando ocorre |
+|---|---|---|---|
+| `media.upload.rollback_failed` | ERROR | `mediaId`, `bucket`, `objectKey` | O `deleteObject` da compensação falhou (ex.: `AccessDenied`, rede). O objeto vira órfão e a causa está no log — este é o evento que justifica alerta |
+| `media.upload.rollback_unknown` | WARN | `mediaId`, `objectKey` | A transação terminou com desfecho desconhecido (`STATUS_UNKNOWN`). O objeto é **mantido** de propósito: apagar quebraria uma referência possivelmente já confirmada |
+| `media.upload.no_active_transaction` | DEBUG | `mediaId`, `objectKey` | O upload rodou sem transação ativa. O `tb_media` já foi commitado pela transação curta do repositório, então não há o que reverter e a limpeza volta a ser do chamador |
+
+`media.upload.rollback_failed` é o único dos três que indica defeito real de compensação — os outros dois são situações esperadas: uma por decisão de segurança (`rollback_unknown`), outra por ausência de transação (`no_active_transaction`).
+
 ## 5. Regras de dados sensíveis (resumo)
 
 | Dado | Logado? |
 |---|---|
 | `userId`, `username` | Sim |
 | `status`, `path`, `event`, `field` | Sim |
+| `mediaId`, `bucket`, `objectKey` | Sim (nenhum deles é credencial) |
 | Senha (seja em texto, hash ou erro) | **Nunca** |
 | Refresh token / JWT (valor) | **Nunca** |
 | `Authorization`/cookies | **Nunca** |
@@ -120,7 +134,7 @@ Emitidos quando uma requisição resulta em erro tratado. Todos carregam `event`
 
 ## 6. Como mudar o nível
 
-Para expor os eventos `DEBUG` (`auth.refresh.created`, `auth.jwt.generated`), ajuste o nível do pacote em `application.yaml`:
+Para expor os eventos `DEBUG` (`auth.refresh.created`, `auth.jwt.generated`, `media.upload.no_active_transaction`), ajuste o nível do pacote em `application.yaml`:
 
 ```yaml
 logging:
