@@ -7,6 +7,7 @@ import com.motadev.clone_reddit.media.repository.MediaRepository;
 import com.motadev.clone_reddit.media.validator.MediaFileValidator;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,8 +15,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -27,10 +31,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -62,6 +69,13 @@ class S3ServiceImplTest {
         presigned = presignedWithUrl(SIGNED_URL);
     }
 
+    @AfterEach
+    void tearDown() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     @Test
     void deveEnviarArquivoValidadoEOsMetadadosParaOS3() {
         prepareSuccessfulUpload();
@@ -85,6 +99,82 @@ class S3ServiceImplTest {
 
         verifyNoInteractions(s3Client);
         verifyNoInteractions(mediaRepository);
+    }
+
+    @Test
+    void deveDeletarObjetoNoS3QuandoSalvarMediaFalhar() {
+        prepareSuccessfulUpload();
+        when(mediaRepository.save(any(Media.class)))
+                .thenThrow(new IllegalStateException("tb_media indisponivel"));
+
+        assertThatThrownBy(() -> service.upload(file("icon.png"), FOLDER))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("tb_media indisponivel");
+
+        // O objeto ja estava no bucket e o registro em tb_media nao existe, o que o
+        // tornaria inalcancavel para qualquer compensacao posterior.
+        verify(s3Client).deleteObject(deletedUploadedObject());
+    }
+
+    @Test
+    void deveNaoRegistrarRollbackForaDeUmaTransacao() {
+        prepareSuccessfulUpload();
+
+        service.upload(file("icon.png"), FOLDER);
+
+        assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void deveDeletarObjetoQuandoTransacaoForRevertida() {
+        prepareSuccessfulUpload();
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.upload(file("icon.png"), FOLDER);
+
+        completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
+        verify(s3Client).deleteObject(deletedUploadedObject());
+    }
+
+    @Test
+    void naoDeveDeletarObjetoQuandoTransacaoForConfirmada() {
+        prepareSuccessfulUpload();
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.upload(file("icon.png"), FOLDER);
+
+        completeTransaction(TransactionSynchronization.STATUS_COMMITTED);
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void naoDevePropagarFalhaDoDeleteNaCompensacao() {
+        prepareSuccessfulUpload();
+        when(s3Client.deleteObject(any(DeleteObjectRequest.class)))
+                .thenThrow(new IllegalStateException("AccessDenied"));
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.upload(file("icon.png"), FOLDER);
+
+        // afterCompletion roda de dentro do proxy transacional: uma excecao lancada
+        // ali escaparia pelo proxy e mascararia a falha original da transacao.
+        assertThatCode(() -> completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void naoDeveDeletarObjetoQuandoDesfechoDaTransacaoForDesconhecido() {
+        prepareSuccessfulUpload();
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.upload(file("icon.png"), FOLDER);
+
+        // Desfecho ambiguo: apagar arriscaria quebrar uma referencia que foi de fato
+        // confirmada (falha visivel, sem recuperacao), enquanto manter arrisca apenas
+        // um orfao. O orfao fica sinalizado no log media.upload.rollback_unknown.
+        completeTransaction(TransactionSynchronization.STATUS_UNKNOWN);
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
     }
 
     @Test
@@ -127,6 +217,18 @@ class S3ServiceImplTest {
             throw new IllegalStateException(e);
         }
         return presigned;
+    }
+
+    private DeleteObjectRequest deletedUploadedObject() {
+        return argThat(request -> BUCKET.equals(request.bucket())
+                && request.key() != null
+                && request.key().startsWith(FOLDER + "/")
+                && request.key().endsWith(".png"));
+    }
+
+    private void completeTransaction(int status) {
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(synchronization -> synchronization.afterCompletion(status));
     }
 
     private MockMultipartFile file(String originalFilename) {
