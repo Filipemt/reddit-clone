@@ -46,3 +46,16 @@ aws:
   s3:
     bucket-name: ${AWS_S3_BUCKET_NAME}
     presigned-url-expiration-seconds: ${AWS_S3_PRESIGNED_URL_SECONDS}
+
+media:
+  upload:
+    max-size-bytes: ${MEDIA_MAX_SIZE_BYTES:5242880}
+    types:
+      - content-type: image/jpeg
+        extensions: [".jpg", ".jpeg"]
+      - content-type: image/png
+        extensions: [".png"]
+      - content-type: image/webp
+        extensions: [".webp"]
+      - content-type: image/gif
+        extensions: [".gif"]
