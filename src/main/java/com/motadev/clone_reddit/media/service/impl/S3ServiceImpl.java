@@ -5,6 +5,7 @@ import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.entity.Media;
 import com.motadev.clone_reddit.media.repository.MediaRepository;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
+import com.motadev.clone_reddit.media.validator.MediaFileValidator;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class S3ServiceImpl implements MediaServiceI {
     private final S3Presigner s3Presigner;
     private final MediaRepository mediaRepository;
     private final MediaConverter mediaConverter;
+    private final MediaFileValidator mediaFileValidator;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
@@ -36,19 +38,20 @@ public class S3ServiceImpl implements MediaServiceI {
     public S3ServiceImpl(S3Client s3Client,
                          S3Presigner s3Presigner,
                          MediaRepository mediaRepository,
-                         MediaConverter mediaConverter) {
+                         MediaConverter mediaConverter,
+                         MediaFileValidator mediaFileValidator) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.mediaRepository = mediaRepository;
         this.mediaConverter = mediaConverter;
+        this.mediaFileValidator = mediaFileValidator;
     }
 
     @Override
     public MediaResponse upload(MultipartFile file, String folder) {
-        // Todo: Adicionar validações de tamanhos de arquivos / extensões permitidas para ícone e banner
-        var request = mediaConverter.toUploadRequest(file, folder);
+        String extension = mediaFileValidator.validateAndResolveExtension(file);
 
-        String extension = getFileExtension(file.getOriginalFilename());
+        var request = mediaConverter.toUploadRequest(file, folder);
         String objectKey = request.folder() + "/" + UUID.randomUUID() + extension;
 
         s3Client.putObject(
@@ -64,13 +67,6 @@ public class S3ServiceImpl implements MediaServiceI {
         mediaRepository.save(media);
 
         return mediaConverter.toResponse(media, getUrl(media.getMediaId()));
-    }
-
-    private static String getFileExtension(String originalFilename) {
-        if (originalFilename != null && originalFilename.contains(".")) {
-            return originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-        return "";
     }
 
     @Override
