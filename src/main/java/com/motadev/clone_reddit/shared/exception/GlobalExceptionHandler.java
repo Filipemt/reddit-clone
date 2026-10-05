@@ -12,6 +12,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
@@ -79,6 +80,18 @@ public class GlobalExceptionHandler {
                                                              HttpServletRequest request) {
         logHandled("http.method_not_allowed", HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage(), request);
         return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex,
+                                                                HttpServletRequest request) {
+        logHandled("http.payload_too_large", HttpStatus.PAYLOAD_TOO_LARGE,
+                "Uploaded file exceeds the maximum allowed size.", request);
+
+        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE,
+                "Uploaded file exceeds the maximum allowed size.",
+                request
+        );
     }
 
     @ExceptionHandler(Exception.class)

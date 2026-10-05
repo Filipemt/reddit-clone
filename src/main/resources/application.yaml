@@ -20,6 +20,11 @@ spring:
     enabled: true
     change-log: classpath:db/changelog/master.yaml
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 12MB
+
 logging:
   structured:
     format:
