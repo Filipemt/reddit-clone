@@ -61,17 +61,20 @@ Principais características do produto original que servem de referência para e
 
 ### Entidades candidatas
 
-| Entidade | Observações |
-|---|---|
-| Usuário | Autenticação, perfil, karma |
-| Comunidade | Contêiner estrutural do post; possui moderadores e regras |
-| Post | Pertence a exatamente uma comunidade |
-| Comentário | Auto-relacionamento (resposta aninhada) |
-| Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) |
-| Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) |
-| Ban | Usuário banido de uma comunidade específica |
-| Notificação | Evento direcionado a um usuário (resposta, menção, upvote) |
-| Tag *(extensão de produto, fora do Reddit original)* | Mecanismo de descoberta transversal a comunidades — relação N:N com posts |
+| Entidade | Observações | Situação |
+|---|---|---|
+| Usuário | Autenticação, perfil, karma | ✅ Modelada e implementada |
+| Comunidade | Contêiner estrutural do post; possui moderadores e regras | 🟡 Modelada; apenas a criação está implementada |
+| Regra da comunidade | Regras ordenadas (`position`) dentro de uma comunidade | 🟡 Modelada; ainda não alimentada pelos endpoints |
+| Mídia | Metadados de arquivos em object storage (bucket + object key) | ✅ Modelada e implementada |
+| Refresh token | Sessão do usuário (rotação, revogação, uso único) | ✅ Modelada e implementada |
+| Post | Pertence a exatamente uma comunidade | ⬜ Não iniciada |
+| Comentário | Auto-relacionamento (resposta aninhada) | ⬜ Não iniciada |
+| Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | ⬜ Não iniciada |
+| Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | ⬜ Não iniciada |
+| Ban | Usuário banido de uma comunidade específica | ⬜ Não iniciada |
+| Notificação | Evento direcionado a um usuário (resposta, menção, upvote) | ⬜ Não iniciada |
+| Tag *(extensão de produto, fora do Reddit original)* | Mecanismo de descoberta transversal a comunidades — relação N:N com posts | ⬜ Não iniciada |
 
 > **Karma** não será uma entidade própria: será tratado como um contador persistido no usuário, atualizado de forma incremental a cada evento de voto (decisão registrada na seção de [Decisões de Arquitetura](#-decisões-de-arquitetura)).
 
@@ -81,18 +84,19 @@ Principais características do produto original que servem de referência para e
 
 Cada funcionalidade do produto foi escolhida (ou vai naturalmente exigir) uma ou mais habilidades técnicas específicas:
 
-| Funcionalidade | Habilidades treinadas |
-|---|---|
-| Sistema de votos | Concorrência, race conditions, operações atômicas, contadores distribuídos |
-| Notificações | Idempotência, mensageria, circuit breaker, retry/backoff |
-| Autenticação e autorização | Segurança, RBAC/autorização contextual (moderador só age na própria comunidade) |
-| Feed pessoal | Cache, fan-out on write/read, paginação por cursor |
-| Comentários aninhados | Modelagem de dados em árvore, consistência estrutural |
-| Busca | Indexação assíncrona, consistência eventual |
-| Rate limit (votos, posts, comentários) | Proteção contra abuso, algoritmos de rate limiting |
-| Comunicação entre serviços | Microsserviços, timeout, retry, service discovery |
-| Processamento de mídia (upload) | Filas, processamento assíncrono, workers |
-| Recalculo de Hot score | Paralelismo/threads, jobs periódicos |
+| Funcionalidade | Habilidades treinadas | Situação |
+|---|---|---|
+| Sistema de votos | Concorrência, race conditions, operações atômicas, contadores distribuídos | ⬜ |
+| Notificações | Idempotência, mensageria, circuit breaker, retry/backoff | ⬜ |
+| Autenticação e autorização | Segurança, RBAC/autorização contextual (moderador só age na própria comunidade) | 🟡 Autenticação pronta; RBAC não iniciado |
+| Feed pessoal | Cache, fan-out on write/read, paginação por cursor | ⬜ |
+| Comentários aninhados | Modelagem de dados em árvore, consistência estrutural | ⬜ |
+| Busca | Indexação assíncrona, consistência eventual | ⬜ |
+| Rate limit (votos, posts, comentários) | Proteção contra abuso, algoritmos de rate limiting | ⬜ |
+| Comunicação entre serviços | Microsserviços, timeout, retry, service discovery | ⬜ |
+| Processamento de mídia (upload) | Filas, processamento assíncrono, workers | 🟡 Upload síncrono direto no S3 feito; fila e worker não |
+| Recalculo de Hot score | Paralelismo/threads, jobs periódicos | ⬜ |
+| Transação distribuída (banco + object storage) | Consistência, compensação, outbox pattern | 🟡 Lacuna conhecida e registrada |
 
 ---
 
@@ -100,15 +104,15 @@ Cada funcionalidade do produto foi escolhida (ou vai naturalmente exigir) uma ou
 
 O projeto não usará um único banco de dados — cada tipo de dado será alocado ao banco que melhor resolve seu problema específico, evoluindo ao longo das fases do projeto:
 
-| Tipo de dado | Banco (candidato) | Motivo |
-|---|---|---|
-| Domínio central (usuário, comunidade, post, membership, ban, voto) | Relacional (PostgreSQL) | Integridade referencial, transações, relacionamento bem definido |
-| Comentários aninhados | Relacional (fase inicial) → avaliação futura de documento (MongoDB) ? | Começa simples (adjacency list); migração planejada como exercício de evolução de arquitetura |
-| Cache de feed, contadores, rate limit | Chave-valor (Redis) | Leitura rápida, dados voláteis, alta frequência de acesso |
-| Busca (posts, comunidades, usuários) | Motor de busca (Elasticsearch) ? | Busca textual otimizada, impraticável em SQL puro |
-| Notificações | A avaliar (documento ou wide-column) | Alto volume de escrita, formato simples, pouco relacional |
-| Log de eventos / auditoria / analytics | A avaliar (wide-column ou time-series) | Escrita massiva, dados imutáveis (append-only) |
-| Imagens e vídeos | Object storage (MinIO local / S3 ) | Banco de dados não deve armazenar binários grandes; apenas a referência (URL/metadados) é persistida no domínio |
+| Tipo de dado | Banco (candidato) | Motivo | Situação |
+|---|---|---|---|
+| Domínio central (usuário, comunidade, post, membership, ban, voto) | Relacional (PostgreSQL) | Integridade referencial, transações, relacionamento bem definido | 🟡 Parcial (usuário, comunidade) |
+| Comentários aninhados | Relacional (fase inicial) → avaliação futura de documento (MongoDB) ? | Começa simples (adjacency list); migração planejada como exercício de evolução de arquitetura | ⬜ |
+| Cache de feed, contadores, rate limit | Chave-valor (Redis) | Leitura rápida, dados voláteis, alta frequência de acesso | ⬜ |
+| Busca (posts, comunidades, usuários) | Motor de busca (Elasticsearch) ? | Busca textual otimizada, impraticável em SQL puro | ⬜ |
+| Notificações | A avaliar (documento ou wide-column) | Alto volume de escrita, formato simples, pouco relacional | ⬜ |
+| Log de eventos / auditoria / analytics | A avaliar (wide-column ou time-series) | Escrita massiva, dados imutáveis (append-only) | ⬜ |
+| Imagens e vídeos | Object storage (S3) | Banco de dados não deve armazenar binários grandes; apenas a referência (UUID da mídia) é persistida no domínio | ✅ Em uso |
 
 ---
 
@@ -131,8 +135,25 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 - **Motivo:** migração de domínio entre bancos é, por si só, uma habilidade de mercado relevante — mais valiosa como aprendizado do que já nascer com a escolha "ideal".
 
 ### Armazenamento de mídia
-- **Decisão:** arquivos (imagem/vídeo) vão para object storage (MinIO, compatível com API S3); o banco de dados guarda apenas referência (URL) e metadados.
-- **Motivo:** banco de dados não é otimizado para armazenar binários grandes; MinIO permite desenvolvimento local com a mesma interface usada em produção (AWS S3).
+- **Decisão:** arquivos (imagem/vídeo) vão para object storage (S3, via AWS SDK v2); o banco de dados guarda apenas a referência (`tb_media`: bucket + object key + content type + tamanho).
+- **Motivo:** banco de dados não é otimizado para armazenar binários grandes; a API S3 permite o mesmo código em qualquer ambiente compatível.
+- **Na prática:** a chave do objeto é `{pasta}/{uuid}{extensão}`, com pasta segmentada por `yyyy/MM` (`communities/icons/...`, `communities/banners/...`). O UUID evita colisão e não expõe o nome original do arquivo.
+- **Leitura:** URLs pré-assinadas (`S3Presigner`) com validade configurável em `AWS_S3_PRESIGNED_URL_SECONDS` — o domínio nunca persiste a URL, que expira.
+- **Ponto de atenção:** o upload acontece **fora** da transação do banco. Se o `save` falhar depois do `putObject`, o objeto fica órfão no bucket (compensação manual ainda não implementada).
+
+### Referências de comunidade: tabelas ou colunas de texto?
+- **Decisão:** tipo, status e tópico de uma comunidade são **entidades de referência** (`tb_community_types`, `tb_community_status`, `tb_community_topics`) com identidade `bigint`, e não colunas `VARCHAR` com `CHECK`.
+- **Motivo:** os conjuntos são fechados e versionáveis pelo domínio (`PUBLIC`/`PRIVATE`/`RESTRICTED`, `ACTIVE`/`ARCHIVED`/`BANNED`, 20 tópicos). Tabelas de referência permitem adicionar valores por migration — e escrever no banco — sem alterar o schema nem o código.
+- **Detalhe:** as tabelas migraram de `uuid` para `bigint identity` porque são de leitura frequente, pequena cardinalidade e alto volume de `join`; a PK do domínio (`community_id`, `user_id`, `media_id`, `rule_id`) permanece `UUID`.
+
+### Dono da comunidade: FK ou referência solta?
+- **Decisão:** `tb_community.owner_id` guarda o `UUID` do usuário **sem** foreign key para `tb_users`.
+- **Motivo:** evita dependência de ciclo entre os módulos `community` e `user` (o pacote `community` não conhece a entidade `User`) e mantém a entidade desacoplada. A integridade é garantida pela aplicação, que valida o usuário antes de criar a comunidade.
+- **Evolução futura:** se a integridade referencial no banco passar a ser necessária, reintroduzir a FK é uma migration aditiva e isolada.
+
+### Mídia como referência, não como coluna
+- **Decisão:** `tb_community` guarda apenas `icon_media_id` e `banner_media_id` (UUID); a resposta da API carrega a URL pré-assinada sob demanda.
+- **Motivo:** a mesma mídia pode ser referenciada por mais de uma entidade, e URLs pré-assinadas expiram — persisti-las no domínio geraria dados inválidos. A assinatura é feita no momento da leitura.
 
 ---
 
@@ -140,10 +161,19 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 
 ```
 /docs
-  /security           → Documentação de segurança (JWT, chaves, etc.)
-  /system-design      → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
-  /mer                → Modelo Entidade-Relacionamento e modelagem de dados
-  /adr                → Architecture Decision Records (se adotado futuramente)
+  /logging             → Convenções de logs estruturados (ECS) e catálogo de eventos
+  /s3                  → Documentação da integração com object storage (upload, URL pré-assinada, IAM, CORS)
+  /security            → Documentação de segurança (autenticação, JWT, chaves, etc.)
+  /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
+  /mer                 → Modelo Entidade-Relacionamento e modelagem de dados
+  /adr                 → Architecture Decision Records (se adotado futuramente)
+/docker                → docker-compose de desenvolvimento (PostgreSQL)
+/src/main/java/com/motadev/clone_reddit
+  /auth                → Autenticação (login, refresh, logout) e ciclo de vida da sessão
+  /user                → Cadastro, perfil, papéis e exclusão de conta
+  /community           → Comunidades, regras e referências (tipo/status/tópico)
+  /media               → Upload para object storage e URLs pré-assinadas
+  /shared              → Configuração, tratamento global de exceções, segurança e extras transversais
 README.md              → Este documento
 ```
 
@@ -157,6 +187,7 @@ README.md              → Este documento
 - Java 25
 - Docker (para o PostgreSQL)
 - OpenSSL 3.x (para gerar as chaves JWT)
+- Credenciais de um bucket S3 (ou de um serviço compatível com a API S3)
 
 **1. Suba o banco de dados**
 
@@ -165,7 +196,22 @@ docker compose up -d          # inicia o Postgres (docker/docker-compose.yml)
 docker compose down -v        # para resetar o banco e os dados (recria o schema via Liquibase)
 ```
 
-**2. Gere as chaves JWT**
+**2. Configure as variáveis de ambiente**
+
+O módulo de mídia resolve as credenciais do S3 por variáveis de ambiente — sem elas a aplicação **não sobe**. Copie `.env.example` e preencha:
+
+```bash
+cp .env.example .env
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_REGION=...
+export AWS_S3_BUCKET_NAME=...
+export AWS_S3_PRESIGNED_URL_SECONDS=3600
+```
+
+Detalhes de criação do bucket, IAM e CORS em [docs/s3/s3-integration.md](docs/s3/s3-integration.md).
+
+**3. Gere as chaves JWT**
 
 O projeto assina e valida tokens com um par de chaves RSA. As chaves ficam em `src/main/resources/app.key` e `app.pub` e **não são versionadas** (estão no `.gitignore`). Gere-as antes do primeiro boot:
 
@@ -177,13 +223,13 @@ openssl rsa -in src/main/resources/app.key -pubout -out src/main/resources/app.p
 
 Veja [docs/security/jwt-keys.md](docs/security/jwt-keys.md) para detalhes, testes e rotação de chaves.
 
-**3. Suba a aplicação**
+**4. Suba a aplicação**
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-O Liquibase aplica as migrations, seeda os papéis (`BASIC`, `ADMIN`) e o `AdminUserConfig` cria o usuário admin inicial:
+O Liquibase aplica as migrations, seeda os papéis (`BASIC`, `ADMIN`), as referências de comunidade (tipos, status e 20 tópicos) e cria o schema de mídia. O `AdminUserConfig` cria o usuário admin inicial:
 
 ```
 POST /authentication/login
@@ -192,28 +238,88 @@ POST /authentication/login
 
 As credenciais acima são apenas para desenvolvimento local (`application.yaml`).
 
+**5. Testes**
+
+```bash
+./mvnw test
+```
+
+Os testes de integração sobem o PostgreSQL via Testcontainers. No macOS com Colima, o `pom.xml` já desabilita o resource-reaper (ryuk) — veja o comentário no `maven-surefire-plugin`.
+
 ---
 
 ## 🚧 Status atual
 
-**Fase: autenticação JWT completa, com ciclo de vida de sessão.**
+**Fase: autenticação completa + modelagem inicial do domínio (comunidades) + camada de mídia em S3.**
 
-A aplicação já tem estrutura Spring Boot com autenticação via JWT (OAuth2 Resource Server) e gerenciamento completo de sessão:
+Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de negócio (`auth`, `user`, `community`, `media`, `shared`). Schema gerenciado por **Liquibase** (14 changelogs), **PostgreSQL** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
+### O que já funciona
+
+**Autenticação e sessão** (`auth`, `user`)
 - **Access token** (JWT assinado com RSA, 5 min): validação de assinatura, expiração e **issuer**.
 - **Refresh token** persistido (24 h): rotação, revogação e consumo de **uso único** (single-use).
-- Endpoints: `register`, `login`, `refresh` e `logout` (grupo `/authentication`).
+- Anti-enumeração de usuários: usuário inexistente e senha errada retornam a mesma mensagem.
 - Papéis seedados (`BASIC`, `ADMIN`), usuário admin inicial e claim `scope` já incluído no token.
-- PostgreSQL via Docker (desenvolvimento) e Testcontainers (testes), migrações Liquibase.
-- Suíte de testes unitários e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT e os fluxos E2E de autenticação.
+- Exclusão de conta (`soft delete`) revoga **todos** os refresh tokens do usuário.
+- **Logs estruturados ECS** com campo `event` nomeado por operação e nenhum dado sensível (ver [docs/logging/logs.md](docs/logging/logs.md)).
 
-Próximos passos planejados: modelagem do domínio (comunidades, posts, comentários, votos) e autorização baseada em papéis e contexto (RBAC) — por exemplo, moderador agindo apenas na própria comunidade.
+**Comunidades** (`community`)
+- Modelo de domínio completo: `Community` (nome, slug, descrição, tópico, tipo, status, dono, timestamps) com **unicidade em `name` e `slug`**.
+- Tabelas de referência seedadas: 3 tipos, 3 status e 20 tópicos; criação com `409 Conflict` em duplicidade.
+- Dono extraído do JWT via `AuthenticatedUserProvider` — o serviço não recebe o usuário do controller.
+- Entidade `CommunityRules` mapeada (`position`, título, descrição) com cascade/`orphanRemoval`.
+
+**Mídia** (`media`)
+- `S3Client` para escrita e `S3Presigner` para leitura; `tb_media` guarda bucket, object key, content type e tamanho.
+- Upload com chave `{pasta}/{uuid}{extensão}` e pastas segmentadas por `yyyy/MM`.
+- **URL pré-assinada** gerada sob demanda e devolvida na resposta — o domínio nunca persiste a URL.
+
+### Endpoints
+
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/users/register` | Cadastro público |
+| POST | `/authentication/login` | Emissão de access + refresh token |
+| POST | `/authentication/refresh` | Rotação do refresh token (uso único) |
+| DELETE | `/authentication/logout` | Revogação de um refresh token |
+| GET | `/users/{userId}` | Perfil do usuário |
+| DELETE | `/users/me` | Exclusão de conta (soft delete) |
+| POST | `/communities` | Criação de comunidade (`multipart/form-data`, ícone e banner opcionais) |
+
+### Testes
+
+Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação e o serviço de usuário (Testcontainers + PostgreSQL real).
+
+### Dívidas e pontos de atenção conhecidos
+
+- **Sem validação de arquivo no upload:** hoje não há limite de tamanho, allowlist de extensão nem checagem do tipo real — o `content_type` é o declarado pelo cliente.
+- **Sem compensação entre S3 e banco:** o `putObject` ocorre fora da transação; se o `save` falhar, o objeto fica órfão no bucket.
+- **Sem testes para `community` e `media`:** a cobertura atual é de `auth` e `user`.
+- **Sem endpoint de leitura de comunidade:** só existe a criação. Listagem, busca, regras, posts e moderação ainda não foram implementadas.
+- **`findUserOrThrow` não filtra `isActive`:** um usuário desativado ainda pode ser lido por id.
+- **Sem job de purga de refresh tokens** expirados/revogados; sem revogação de access token antes do `exp`.
+- **Sem cache de URL pré-assinada:** uma nova URL é assinada a cada leitura.
+
+### Próximos passos planejados
+
+Leitura e busca de comunidades, membership/moderadores (RBAC contextual), posts, comentários aninhados e o sistema de votos — a parte do projeto que traz concorrência, cache e mensageria.
+
+### Stack
+
+Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
 
 ---
 
-## 📚 Referências de estudo
+## 📚 Referências e documentação
 
 - Estudo do funcionamento real do Reddit (produto, moderação, algoritmo de relevância) como base comparativa para as decisões deste projeto.
+- Documentação interna, para ir a fundo em cada camada:
+  - [docs/security/authentication.md](docs/security/authentication.md) — fluxo de autenticação, ciclo de vida da sessão e endpoints
+  - [docs/security/jwt-keys.md](docs/security/jwt-keys.md) — geração, verificação e rotação das chaves
+  - [docs/s3/s3-integration.md](docs/s3/s3-integration.md) — camada de mídia: upload, URL pré-assinada, IAM e CORS
+  - [docs/logging/logs.md](docs/logging/logs.md) — convenções de logs estruturados e catálogo de eventos
+  - [docs/system-design/mvp-system-design.png](docs/system-design/mvp-system-design.png) — modelo do sistema do MVP
 
 ---
 
