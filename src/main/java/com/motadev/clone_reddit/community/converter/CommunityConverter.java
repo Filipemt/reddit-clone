@@ -10,6 +10,7 @@ import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -39,8 +40,7 @@ public class CommunityConverter {
     }
 
     public CommunityResponseDTO toResponseDto(Community community,
-                                              String iconUrl,
-                                              String bannerUrl) {
+                                              Map<UUID, String> urls) {
         return new CommunityResponseDTO(
                 community.getCommunityId(),
                 community.getName(),
@@ -50,13 +50,17 @@ public class CommunityConverter {
                 community.getTopic().getName(),
                 community.getType().getTypeId(),
                 community.getType().getName(),
-                toReference(community.getIconMediaId(), iconUrl),
-                toReference(community.getBannerMediaId(), bannerUrl),
+                toReference(community.getIconMediaId(), urls),
+                toReference(community.getBannerMediaId(), urls),
                 community.getCreatedAt()
         );
     }
 
-    private MediaResponse toReference(UUID mediaId, String url) {
-        return mediaId == null ? null : new MediaResponse(mediaId, url);
+    private MediaResponse toReference(UUID mediaId, Map<UUID, String> urls) {
+        if (mediaId == null) {
+            return null;
+        }
+
+        return new MediaResponse(mediaId, urls.get(mediaId));
     }
 }

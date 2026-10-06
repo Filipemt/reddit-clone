@@ -10,7 +10,9 @@ import com.motadev.clone_reddit.community.entity.CommunityType;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
+import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
+import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
 import com.motadev.clone_reddit.user.service.UserServiceI;
@@ -19,8 +21,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -29,12 +37,17 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -150,6 +163,141 @@ class CommunityServiceImplTest {
 
     private boolean isMonthlyIconsFolder(String folder) {
         return folder.matches("communities/icons/\\d{4}/\\d{2}");
+    }
+
+    @Test
+    void deveListarComUmaUnicaConsultaDeUrlsParaTodaAPagina() {
+        UUID otherIconId = UUID.randomUUID();
+        Community first = persisted("java", ICON_MEDIA_ID, BANNER_MEDIA_ID);
+        Community second = persisted("kotlin", otherIconId, null);
+        when(communityRepository.findByDeletedAtIsNull(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(first, second)));
+        when(mediaServiceI.getUrls(anyCollection()))
+                .thenReturn(Map.of(ICON_MEDIA_ID, "https://signed/icon",
+                        BANNER_MEDIA_ID, "https://signed/banner",
+                        otherIconId, "https://signed/other"));
+
+        PagedResponseDTO<CommunityResponseDTO> page = service.list(PageRequest.of(1, 20));
+
+        assertThat(page.content()).hasSize(2);
+        assertThat(page.content().get(0).icon().url()).isEqualTo("https://signed/icon");
+        assertThat(page.content().get(1).icon().url()).isEqualTo("https://signed/other");
+        assertThat(page.content().get(1).banner()).isNull();
+
+        ArgumentCaptor<Collection<UUID>> captor = ArgumentCaptor.forClass(Collection.class);
+        verify(mediaServiceI).getUrls(captor.capture());
+        assertThat(Set.copyOf(captor.getValue()))
+                .containsExactlyInAnyOrder(ICON_MEDIA_ID, BANNER_MEDIA_ID, otherIconId);
+    }
+
+    @Test
+    void naoDeveConsultarUrlsQuandoNenhumaComunidadeDaPaginaTemMidia() {
+        when(communityRepository.findByDeletedAtIsNull(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(persisted("java", null, null))));
+
+        PagedResponseDTO<CommunityResponseDTO> page = service.list(PageRequest.of(1, 20));
+
+        assertThat(page.content().get(0).icon()).isNull();
+        verify(mediaServiceI, never()).getUrls(anyCollection());
+    }
+
+    @Test
+    void deveOrdenarListagemPorCreatedAtDecrescente() {
+        when(communityRepository.findByDeletedAtIsNull(any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        service.list(PageRequest.of(1, 20));
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(communityRepository).findByDeletedAtIsNull(captor.capture());
+        assertThat(captor.getValue().getSort().getOrderFor("createdAt"))
+                .isEqualTo(Sort.Order.desc("createdAt"));
+    }
+
+    @Test
+    void deveBuscarDetalhePorId() {
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(any(UUID.class)))
+                .thenReturn(Optional.of(persisted("java", ICON_MEDIA_ID, BANNER_MEDIA_ID)));
+        when(mediaServiceI.getUrls(anyCollection()))
+                .thenReturn(Map.of(ICON_MEDIA_ID, "https://signed/icon",
+                        BANNER_MEDIA_ID, "https://signed/banner"));
+
+        CommunityResponseDTO response = service.getById(UUID.randomUUID());
+
+        assertThat(response.slug()).isEqualTo("java");
+        assertThat(response.banner().url()).isEqualTo("https://signed/banner");
+    }
+
+    @Test
+    void deveBuscarDetalhePorSlug() {
+        when(communityRepository.findBySlugAndDeletedAtIsNull("java"))
+                .thenReturn(Optional.of(persisted("java", null, null)));
+
+        CommunityResponseDTO response = service.getBySlug("java");
+
+        assertThat(response.name()).isEqualTo("JAVA");
+        assertThat(response.icon()).isNull();
+    }
+
+    @Test
+    void naoDeveEncontrarComunidadeInexistentePorId() {
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(any(UUID.class)))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getById(UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void naoDeveEncontrarComunidadeInexistentePorSlug() {
+        when(communityRepository.findBySlugAndDeletedAtIsNull("nao-existe"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getBySlug("nao-existe"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void deveConsultarBuscaQueIgnoraComunidadesRemovidas() {
+        when(communityRepository.findByDeletedAtIsNull(any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        service.list(PageRequest.of(1, 20));
+
+        // findAll traria as communities removidas junto; o filtro precisa ficar
+        // na query, e nao em memoria depois do fetch.
+        verify(communityRepository).findByDeletedAtIsNull(any(Pageable.class));
+        verify(communityRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void deveLimitarAPaginaQuandoRecebePageableSemPaginacao() {
+        when(communityRepository.findByDeletedAtIsNull(any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        service.list(Pageable.unpaged());
+
+        // Sem paginar, o repositorio devolveria a tabela inteira. O servico
+        // precisa cair no tamanho default em vez de deixar isso passar.
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(communityRepository).findByDeletedAtIsNull(captor.capture());
+        assertThat(captor.getValue().getPageSize()).isEqualTo(20);
+        assertThat(captor.getValue().getSort().getOrderFor("createdAt"))
+                .isEqualTo(Sort.Order.desc("createdAt"));
+    }
+
+    private Community persisted(String slug, UUID iconMediaId, UUID bannerMediaId) {
+        Community community = new Community();
+        community.setCommunityId(UUID.randomUUID());
+        community.setName(slug.toUpperCase());
+        community.setSlug(slug);
+        community.setDescription("Comunidade sobre " + slug);
+        community.setTopic(reference(new CommunityTopic(), slug + " topic"));
+        community.setType(reference(new CommunityType(), slug + " type"));
+        community.setIconMediaId(iconMediaId);
+        community.setBannerMediaId(bannerMediaId);
+        community.setCreatedAt(LocalDateTime.now());
+        return community;
     }
 
     private void prepareOwner() {

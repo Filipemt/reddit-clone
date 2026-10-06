@@ -8,17 +8,29 @@ import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.community.service.CommunityServiceI;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
+import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
+import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -32,6 +44,10 @@ public class CommunityServiceImpl implements CommunityServiceI {
 
     private static final DateTimeFormatter FOLDER_PERIOD_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy/MM");
+
+    private static final Sort SORT_NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
+
+    private static final int FALLBACK_PAGE_SIZE = 20;
 
     public CommunityServiceImpl(CommunityRepository communityRepository,
                                 UserServiceI userServiceI,
@@ -66,7 +82,61 @@ public class CommunityServiceImpl implements CommunityServiceI {
                         idOf(bannerMedia)
                 )
         );
-        return communityConverter.toResponseDto(saved, urlOf(iconMedia), urlOf(bannerMedia));
+        return communityConverter.toResponseDto(saved, urlsOf(iconMedia, bannerMedia));
+    }
+
+    @Override
+    @Transactional
+    public PagedResponseDTO<CommunityResponseDTO> list(Pageable pageable) {
+        Page<Community> page = communityRepository.findByDeletedAtIsNull(withSortNewestFirst(pageable));
+
+        Map<UUID, String> urls = urlsFor(mediaIdsOf(page.getContent()));
+
+        return PagedResponseDTO.from(
+                page,
+                community -> communityConverter.toResponseDto(community, urls)
+        );
+    }
+
+    @Override
+    @Transactional
+    public CommunityResponseDTO getById(UUID communityId) {
+        Community community = communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Community not found."));
+
+        return communityConverter.toResponseDto(community, urlsFor(mediaIdsOf(community)));
+    }
+
+    @Override
+    @Transactional
+    public CommunityResponseDTO getBySlug(String slug) {
+        Community community = communityRepository.findBySlugAndDeletedAtIsNull(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Community not found."));
+
+        return communityConverter.toResponseDto(community, urlsFor(mediaIdsOf(community)));
+    }
+
+    private Map<UUID, String> urlsFor(Collection<UUID> mediaIds) {
+        return mediaIds.isEmpty() ? Map.of() : mediaServiceI.getUrls(mediaIds);
+    }
+
+    private static Pageable withSortNewestFirst(Pageable pageable) {
+        if (!pageable.isPaged()) {
+            return PageRequest.of(0, FALLBACK_PAGE_SIZE, SORT_NEWEST_FIRST);
+        }
+
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), SORT_NEWEST_FIRST);
+    }
+
+    private Collection<UUID> mediaIdsOf(Community community) {
+        return mediaIdsOf(List.of(community));
+    }
+
+    private Collection<UUID> mediaIdsOf(List<Community> communities) {
+        return communities.stream()
+                .flatMap(community -> Stream.of(community.getIconMediaId(), community.getBannerMediaId()))
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private static String communityIconFolder() {
@@ -79,8 +149,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
 
     private void validateCommunityUniqueness(CreateCommunityRequestDTO createCommunityRequestDTO) {
         if (communityRepository.existsByNameOrSlug(createCommunityRequestDTO.name(), createCommunityRequestDTO.slug())) {
-            log.atWarn()
-                    .addKeyValue("event", "community.create.conflict")
+            log.atWarn()                    .addKeyValue("event", "community.create.conflict")
                     .addKeyValue("name", createCommunityRequestDTO.name())
                     .addKeyValue("slug", createCommunityRequestDTO.slug())
                     .setMessage("Attempt to create a community with an existing name or slug")
@@ -101,7 +170,14 @@ public class CommunityServiceImpl implements CommunityServiceI {
         return media == null ? null : media.mediaId();
     }
 
-    private String urlOf(MediaResponse media) {
-        return media == null ? null : media.url();
+    private Map<UUID, String> urlsOf(MediaResponse... media) {
+        Map<UUID, String> urls = new HashMap<>();
+        for (MediaResponse item : media) {
+            if (item != null) {
+                urls.put(item.mediaId(), item.url());
+            }
+        }
+
+        return urls;
     }
 }
