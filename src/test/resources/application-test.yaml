@@ -3,3 +3,11 @@ jwt:
     key: classpath:test-app.pub
   private:
     key: classpath:test-app.key
+
+aws:
+  access-key: test-access-key
+  secret-access-key: test-secret-access-key
+  region: us-east-1
+  s3:
+    bucket-name: test-bucket
+    presigned-url-expiration-seconds: 3600
