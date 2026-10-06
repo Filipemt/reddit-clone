@@ -1,5 +1,6 @@
 package com.motadev.clone_reddit.user.service.impl;
 
+import com.motadev.clone_reddit.auth.logging.AuthEventLog;
 import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
@@ -61,7 +62,7 @@ class UserServiceImplTest {
         passwordEncoder = new BCryptPasswordEncoder();
         userConvert = new UserConvert(roleRepository, passwordEncoder, userRepository);
         service = new UserServiceImpl(userRepository, roleRepository, userConvert, refreshTokenService, passwordEncoder,
-                new AuthenticatedUserProvider(), new UserEventLog());
+                new AuthenticatedUserProvider(new AuthEventLog()), new UserEventLog());
     }
 
     @AfterEach

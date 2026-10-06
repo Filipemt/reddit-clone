@@ -1,5 +1,6 @@
 package com.motadev.clone_reddit.shared.security;
 
+import com.motadev.clone_reddit.auth.logging.AuthEventLog;
 import com.motadev.clone_reddit.shared.exception.UnauthorizedException;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import org.junit.jupiter.api.AfterEach;
@@ -17,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AuthenticatedUserProviderTest {
 
-    private final AuthenticatedUserProvider provider = new AuthenticatedUserProvider();
+    private final AuthenticatedUserProvider provider = new AuthenticatedUserProvider(new AuthEventLog());
 
     @AfterEach
     void tearDown() {

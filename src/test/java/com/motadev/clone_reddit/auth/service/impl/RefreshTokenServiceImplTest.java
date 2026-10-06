@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
+import com.motadev.clone_reddit.auth.logging.AuthEventLog;
 import com.motadev.clone_reddit.auth.repository.RefreshTokenRepository;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
@@ -45,7 +46,7 @@ class RefreshTokenServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new RefreshTokenServiceImpl(userService, refreshRepository, tokenService);
+        service = new RefreshTokenServiceImpl(userService, refreshRepository, tokenService, new AuthEventLog());
         ReflectionTestUtils.setField(service, "refreshExpirationMs", REFRESH_EXPIRATION_MS);
         // Retorna a propria entidade que foi salva, simulando o JPA que atribui o id.
         lenient().when(refreshRepository.save(any(RefreshToken.class)))
