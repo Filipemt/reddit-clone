@@ -53,6 +53,17 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void deveResponder403QuandoOUsuarioNaoTemPapelSuficiente() {
+        ForbiddenException ex = new ForbiddenException("Only the owner can delete this community.");
+
+        ResponseEntity<ApiError> response = handler.handleForbidden(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().status()).isEqualTo(403);
+        assertThat(response.getBody().message()).contains("owner");
+    }
+
+    @Test
     void deveResponder500ParaExcecaoDesconhecida() {
         ResponseEntity<ApiError> response = handler.handleGeneric(new IllegalStateException("boom"), request);
 

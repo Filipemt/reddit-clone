@@ -22,7 +22,12 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.time.Duration;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import static java.util.stream.Collectors.toMap;
 
 @Service
 @Slf4j
@@ -105,8 +110,7 @@ public class S3ServiceImpl implements MediaServiceI {
                             .addKeyValue("event", "media.upload.rollback_unknown")
                             .addKeyValue("mediaId", media.getMediaId())
                             .addKeyValue("objectKey", media.getObjectKey())
-                            .setMessage("Transaction outcome is unknown; the S3 object was kept to avoid "
-                                    + "breaking a reference that may have been committed.")
+                            .setMessage("Transaction outcome is unknown; the S3 object was kept to avoid breaking a reference that may have been committed.")
                             .log();
                 }
             }
@@ -136,6 +140,54 @@ public class S3ServiceImpl implements MediaServiceI {
         Media media = mediaRepository.findById(mediaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Media not found"));
 
+        return presignUrl(media);
+    }
+
+    @Override
+    public Map<UUID, String> getUrls(Collection<UUID> mediaIds) {
+        if (mediaIds == null || mediaIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return mediaRepository.findAllById(mediaIds).stream()
+                .collect(toMap(Media::getMediaId, this::presignUrl));
+    }
+
+    @Override
+    public void deleteAfterCommit(Collection<UUID> mediaIds) {
+        if (mediaIds == null || mediaIds.isEmpty()) {
+            return;
+        }
+
+        List<Media> medias = mediaRepository.findAllById(mediaIds);
+        if (medias.isEmpty()) {
+            return;
+        }
+
+        mediaRepository.deleteAll(medias);
+        registerDeleteOnCommit(medias);
+    }
+
+    private void registerDeleteOnCommit(List<Media> medias) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            log.atDebug()
+                    .addKeyValue("event", "media.delete.no_active_transaction")
+                    .addKeyValue("mediaCount", medias.size())
+                    .setMessage("Media deletion performed outside a transaction; the S3 objects are deleted right away.")
+                    .log();
+            medias.forEach(media -> deleteObjectQuietly(media.getBucket(), media.getObjectKey()));
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                medias.forEach(media -> deleteObjectQuietly(media.getBucket(), media.getObjectKey()));
+            }
+        });
+    }
+
+    private String presignUrl(Media media) {
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofSeconds(presignedUrlExpirationSeconds))
                 .getObjectRequest(GetObjectRequest.builder()

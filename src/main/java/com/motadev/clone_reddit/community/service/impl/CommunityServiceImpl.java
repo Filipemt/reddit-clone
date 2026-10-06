@@ -152,7 +152,8 @@ public class CommunityServiceImpl implements CommunityServiceI {
         authorizeManagement(community);
 
         if (community.getDeletedAt() != null) {
-            log.atDebug()                            .addKeyValue("event", "community.delete.already_deleted")
+            log.atDebug()
+                    .addKeyValue("event", "community.delete.already_deleted")
                     .addKeyValue("communityId", communityId)
                     .addKeyValue("userId", userId)
                     .setMessage("Community was already soft deleted; nothing to do")
@@ -167,7 +168,8 @@ public class CommunityServiceImpl implements CommunityServiceI {
 
         mediaServiceI.deleteAfterCommit(mediaIds);
 
-        log.atInfo()                            .addKeyValue("event", "community.delete.success")
+        log.atInfo()
+                .addKeyValue("event", "community.delete.success")
                 .addKeyValue("communityId", communityId)
                 .addKeyValue("userId", userId)
                 .addKeyValue("isOwner", community.getOwnerId().equals(userId))
@@ -192,7 +194,8 @@ public class CommunityServiceImpl implements CommunityServiceI {
             return;
         }
 
-        log.atWarn()                            .addKeyValue("event", "community.media.forbidden")
+        log.atWarn()
+                .addKeyValue("event", "community.media.forbidden")
                 .addKeyValue("communityId", community.getCommunityId())
                 .addKeyValue("userId", userId)
                 .setMessage("Attempt to change the media of a community the user does not own")
@@ -267,15 +270,12 @@ public class CommunityServiceImpl implements CommunityServiceI {
             return;
         }
 
-        // existsByNameOrSlug nao filtra removed, entao um nome de comunidade apagada
-        // ainda aparece aqui e segue reservado ate a purga liberar a linha. A
-        // resposta e a mesma para um nome ativo e para um reservado; o operador
-        // precisa do detalhe, o cliente nao.
         boolean deleted = communityRepository.existsByNameAndDeletedAtIsNotNull(
                         createCommunityRequestDTO.name())
                 || communityRepository.existsBySlugAndDeletedAtIsNotNull(createCommunityRequestDTO.slug());
 
-        log.atWarn()                            .addKeyValue("event", "community.create.conflict")
+        log.atWarn()
+                .addKeyValue("event", "community.create.conflict")
                 .addKeyValue("name", createCommunityRequestDTO.name())
                 .addKeyValue("slug", createCommunityRequestDTO.slug())
                 .addKeyValue("deleted", deleted)

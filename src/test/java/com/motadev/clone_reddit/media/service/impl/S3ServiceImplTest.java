@@ -27,6 +27,8 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -186,6 +188,115 @@ class S3ServiceImplTest {
                 .hasMessage("Media not found");
     }
 
+    @Test
+    void deveAssinarTodaAPaginaDeMidiasComUmaUnicaConsulta() {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        stubPresigner();
+        when(mediaRepository.findAllById(any())).thenReturn(List.of(media(first), media(second)));
+
+        Map<UUID, String> urls = service.getUrls(List.of(first, second));
+
+        assertThat(urls).containsOnlyKeys(first, second);
+        assertThat(urls.get(first)).isEqualTo(SIGNED_URL);
+        // A listagem de comunidades traz icone e banner de cada linha: uma consulta
+        // por midia viraria N+1 no banco, mesmo que a assinatura em si seja local.
+        verify(mediaRepository).findAllById(any());
+        verify(mediaRepository, never()).findById(any());
+    }
+
+    @Test
+    void naoDeveConsultarOBancoQuandoNaoHaMidiasParaAssinar() {
+        assertThat(service.getUrls(List.of())).isEmpty();
+        assertThat(service.getUrls(null)).isEmpty();
+
+        verifyNoInteractions(mediaRepository);
+    }
+
+    @Test
+    void naoDeveFalharQuandoUmaMidiaDaPaginaNaoExisteMais() {
+        UUID existent = UUID.randomUUID();
+        stubPresigner();
+        when(mediaRepository.findAllById(any())).thenReturn(List.of(media(existent)));
+
+        Map<UUID, String> urls = service.getUrls(List.of(existent, UUID.randomUUID()));
+
+        // Diferente do getUrl de midia unica, aqui a ausencia no mapa e o resultado
+        // esperado: a listagem mostra o resto da pagina em vez de falhar inteira.
+        assertThat(urls).containsOnlyKeys(existent);
+    }
+
+    @Test
+    void deveDeletarObjetosDasMidiasDepoisDoCommitConfirmado() {
+        when(mediaRepository.findAllById(any())).thenReturn(List.of(mediaWithKey("icon-old.png")));
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.deleteAfterCommit(List.of(UUID.randomUUID()));
+        completeCommit();
+
+        verify(s3Client).deleteObject(deletedObject("icon-old.png"));
+    }
+
+    @Test
+    void naoDeveDeletarObjetosQuandoATransacaoForRevertida() {
+        when(mediaRepository.findAllById(any())).thenReturn(List.of(mediaWithKey("icon-old.png")));
+        TransactionSynchronizationManager.initSynchronization();
+
+        service.deleteAfterCommit(List.of(UUID.randomUUID()));
+        completeTransaction(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+        // Ao contrario do upload, aqui o rollback tem de preservar o objeto: a linha
+        // em tb_media continua existindo e a referencia do dominio segue valendo.
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void deveDeletarObjetosImediatamenteQuandoNaoHaTransacaoAtiva() {
+        when(mediaRepository.findAllById(any())).thenReturn(List.of(mediaWithKey("banner-old.png")));
+
+        service.deleteAfterCommit(List.of(UUID.randomUUID()));
+
+        verify(s3Client).deleteObject(deletedObject("banner-old.png"));
+    }
+
+    @Test
+    void naoDeveDeletarObjetosQuandoNenhumaMidiaExisteMais() {
+        when(mediaRepository.findAllById(any())).thenReturn(List.of());
+
+        service.deleteAfterCommit(List.of(UUID.randomUUID()));
+
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    private Media media(UUID mediaId) {
+        Media media = new Media();
+        media.setMediaId(mediaId);
+        media.setBucket(BUCKET);
+        media.setObjectKey(FOLDER + "/" + mediaId + ".png");
+        return media;
+    }
+
+    private Media mediaWithKey(String objectKey) {
+        Media media = new Media();
+        media.setMediaId(UUID.randomUUID());
+        media.setBucket(BUCKET);
+        media.setObjectKey(FOLDER + "/" + objectKey);
+        return media;
+    }
+
+    private DeleteObjectRequest deletedObject(String objectKey) {
+        return argThat(request -> BUCKET.equals(request.bucket())
+                && (FOLDER + "/" + objectKey).equals(request.key()));
+    }
+
+    private void completeCommit() {
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(synchronization -> {
+                    synchronization.afterCommit();
+                    synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+                });
+    }
+
     private void prepareSuccessfulUpload() {
         when(mediaFileValidator.validateAndResolveExtension(any())).thenReturn(".png");
 
@@ -203,6 +314,11 @@ class S3ServiceImplTest {
             return Optional.of(media);
         });
 
+        lenient().when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class)))
+                .thenReturn(presigned);
+    }
+
+    private void stubPresigner() {
         lenient().when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class)))
                 .thenReturn(presigned);
     }
