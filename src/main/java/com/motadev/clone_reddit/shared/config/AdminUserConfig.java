@@ -1,12 +1,12 @@
 package com.motadev.clone_reddit.shared.config;
 
+import com.motadev.clone_reddit.shared.logging.AdminEventLog;
 import com.motadev.clone_reddit.user.entity.Role;
 import com.motadev.clone_reddit.user.entity.User;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,19 +14,21 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.Set;
 
 @Configuration
-@Slf4j
 public class AdminUserConfig implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AdminEventLog adminEventLog;
 
     public AdminUserConfig(UserRepository userRepository,
                            RoleRepository roleRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           AdminEventLog adminEventLog) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.adminEventLog = adminEventLog;
     }
 
     @Override
@@ -43,11 +45,7 @@ public class AdminUserConfig implements CommandLineRunner {
         var userAdmin = userRepository.findByUsernameAndIsActiveTrue("admin");
 
         userAdmin.ifPresentOrElse(
-                user -> log.atInfo()
-                        .addKeyValue("event", "admin.seed.skipped")
-                        .addKeyValue("username", "admin")
-                        .setMessage("Admin user already exists")
-                        .log(),
+                user -> adminEventLog.seedSkipped("admin"),
                 () -> {
                     var user = new User();
                     user.setUsername("admin");
@@ -55,11 +53,7 @@ public class AdminUserConfig implements CommandLineRunner {
                     user.setRoles(Set.of(roleAdmin));
                     userRepository.save(user);
 
-                    log.atInfo()
-                            .addKeyValue("event", "admin.seed.created")
-                            .addKeyValue("username", "admin")
-                            .setMessage("Admin user seeded")
-                            .log();
+                    adminEventLog.seedCreated("admin");
                 }
         );
     }
