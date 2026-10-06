@@ -99,7 +99,8 @@ class CommunityPurgeJobTest {
                 communityRepository,
                 mediaServiceI,
                 jdbcTemplate,
-                transactionTemplate
+                transactionTemplate,
+                new CommunityEventLog()
         );
     }
 }
