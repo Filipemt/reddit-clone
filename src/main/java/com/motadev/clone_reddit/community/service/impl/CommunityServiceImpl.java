@@ -9,9 +9,11 @@ import com.motadev.clone_reddit.community.service.CommunityServiceI;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
 import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
+import com.motadev.clone_reddit.shared.exception.ForbiddenException;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
+import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +24,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -41,9 +41,6 @@ public class CommunityServiceImpl implements CommunityServiceI {
     private final MediaServiceI mediaServiceI;
     private final CommunityConverter communityConverter;
     private final CommunityRepository communityRepository;
-
-    private static final DateTimeFormatter FOLDER_PERIOD_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy/MM");
 
     private static final Sort SORT_NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
 
@@ -71,18 +68,101 @@ public class CommunityServiceImpl implements CommunityServiceI {
         validateCommunityUniqueness(createCommunityRequestDTO);
         var owner = userServiceI.getUserById(userId);
 
-        MediaResponse iconMedia = uploadIfPresent(iconFile, communityIconFolder());
-        MediaResponse bannerMedia = uploadIfPresent(bannerFile, communityBannerFolder());
-
         Community saved = communityRepository.saveAndFlush(
-                communityConverter.toEntity(
-                        createCommunityRequestDTO,
-                        owner.userId(),
-                        idOf(iconMedia),
-                        idOf(bannerMedia)
-                )
+                communityConverter.toEntity(createCommunityRequestDTO, owner.userId(), null, null)
         );
+
+        MediaResponse iconMedia = uploadIfPresent(iconFile, iconFolderOf(saved.getCommunityId()));
+        MediaResponse bannerMedia = uploadIfPresent(bannerFile, bannerFolderOf(saved.getCommunityId()));
+
+        saved.setIconMediaId(idOf(iconMedia));
+        saved.setBannerMediaId(idOf(bannerMedia));
+
         return communityConverter.toResponseDto(saved, urlsOf(iconMedia, bannerMedia));
+    }
+
+    @Override
+    @Transactional
+    public CommunityResponseDTO replaceIcon(UUID communityId, MultipartFile iconFile) {
+        Community community = findManageableOrThrow(communityId);
+
+        MediaResponse media = mediaServiceI.upload(iconFile, iconFolderOf(communityId));
+
+        return swapMediaSlot(community, media, true);
+    }
+
+    @Override
+    @Transactional
+    public CommunityResponseDTO replaceBanner(UUID communityId, MultipartFile bannerFile) {
+        Community community = findManageableOrThrow(communityId);
+
+        MediaResponse media = mediaServiceI.upload(bannerFile, bannerFolderOf(communityId));
+
+        return swapMediaSlot(community, media, false);
+    }
+
+    @Override
+    @Transactional
+    public void removeIcon(UUID communityId) {
+        clearMediaSlot(findManageableOrThrow(communityId), true);
+    }
+
+    @Override
+    @Transactional
+    public void removeBanner(UUID communityId) {
+        clearMediaSlot(findManageableOrThrow(communityId), false);
+    }
+
+    private CommunityResponseDTO swapMediaSlot(Community community, MediaResponse media, boolean iconSlot) {
+        UUID previousMediaId = mediaIdOf(community, iconSlot);
+
+        if (iconSlot) {
+            community.setIconMediaId(media.mediaId());
+        } else {
+            community.setBannerMediaId(media.mediaId());
+        }
+
+        mediaServiceI.deleteAfterCommit(idsOf(previousMediaId));
+
+        return communityConverter.toResponseDto(community, urlsOf(media));
+    }
+
+    private void clearMediaSlot(Community community, boolean iconSlot) {
+        mediaServiceI.deleteAfterCommit(idsOf(mediaIdOf(community, iconSlot)));
+
+        if (iconSlot) {
+            community.setIconMediaId(null);
+        } else {
+            community.setBannerMediaId(null);
+        }
+    }
+
+    private static UUID mediaIdOf(Community community, boolean iconSlot) {
+        return iconSlot ? community.getIconMediaId() : community.getBannerMediaId();
+    }
+
+    private Community findManageableOrThrow(UUID communityId) {
+        Community community = communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Community not found."));
+
+        authorizeManagement(community);
+
+        return community;
+    }
+
+    private void authorizeManagement(Community community) {
+        UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
+
+        if (community.getOwnerId().equals(userId) || authenticatedUserProvider.hasRole(RoleValues.ADMIN)) {
+            return;
+        }
+
+        log.atWarn()                            .addKeyValue("event", "community.media.forbidden")
+                .addKeyValue("communityId", community.getCommunityId())
+                .addKeyValue("userId", userId)
+                .setMessage("Attempt to change the media of a community the user does not own")
+                .log();
+        throw new ForbiddenException("You are not allowed to change this community.");
     }
 
     @Override
@@ -139,12 +219,12 @@ public class CommunityServiceImpl implements CommunityServiceI {
                 .toList();
     }
 
-    private static String communityIconFolder() {
-        return "communities/icons/" + LocalDateTime.now().format(FOLDER_PERIOD_FORMATTER);
+    private static String iconFolderOf(UUID communityId) {
+        return "communities/" + communityId + "/icon";
     }
 
-    private static String communityBannerFolder() {
-        return "communities/banners/" + LocalDateTime.now().format(FOLDER_PERIOD_FORMATTER);
+    private static String bannerFolderOf(UUID communityId) {
+        return "communities/" + communityId + "/banner";
     }
 
     private void validateCommunityUniqueness(CreateCommunityRequestDTO createCommunityRequestDTO) {
@@ -179,5 +259,9 @@ public class CommunityServiceImpl implements CommunityServiceI {
         }
 
         return urls;
+    }
+
+    private static List<UUID> idsOf(UUID... mediaIds) {
+        return Stream.of(mediaIds).filter(Objects::nonNull).toList();
     }
 }

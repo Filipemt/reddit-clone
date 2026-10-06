@@ -14,7 +14,9 @@ import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
 import com.motadev.clone_reddit.shared.exception.ResourceAlreadyExists;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
+import com.motadev.clone_reddit.shared.exception.ForbiddenException;
 import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
+import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
@@ -51,7 +53,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.endsWith;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -96,9 +98,9 @@ class CommunityServiceImplTest {
     @Test
     void deveCriarComunidadeComIconeEBanner() {
         prepareOwner();
-        when(mediaServiceI.upload(any(MultipartFile.class), contains("communities/icons/")))
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/icon")))
                 .thenReturn(new MediaResponse(ICON_MEDIA_ID, "https://signed/icon"));
-        when(mediaServiceI.upload(any(MultipartFile.class), contains("communities/banners/")))
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/banner")))
                 .thenReturn(new MediaResponse(BANNER_MEDIA_ID, "https://signed/banner"));
 
         CommunityResponseDTO response = service.create(request(), file("icon.png"), file("banner.png"));
@@ -137,7 +139,7 @@ class CommunityServiceImplTest {
     @Test
     void naoDeveFazerUploadQuandoParteVaziaForEnviada() {
         prepareOwner();
-        when(mediaServiceI.upload(any(MultipartFile.class), contains("communities/icons/")))
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/icon")))
                 .thenReturn(new MediaResponse(ICON_MEDIA_ID, "https://signed/icon"));
         MultipartFile emptyBanner = emptyFile();
 
@@ -148,17 +150,119 @@ class CommunityServiceImplTest {
     }
 
     @Test
-    void deveResolverOParticionamentoMensalPorChamada() {
-        // Se a pasta fosse uma constante static final, o yyyy/MM ficaria congelado no
-        // carregamento da classe e so mudaria junto com um restart da aplicacao.
+    void deveGravarAMidiaSobAPastaDaPropriaComunidade() {
+        // A chave precisa carregar o communityId para que a purga e a listagem
+        // de objetos por comunidade sejam um prefixo, sem varrer o bucket.
         prepareOwner();
-        when(mediaServiceI.upload(any(MultipartFile.class), argThat(this::isMonthlyIconsFolder)))
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/icon")))
                 .thenReturn(new MediaResponse(ICON_MEDIA_ID, "https://signed/icon"));
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/banner")))
+                .thenReturn(new MediaResponse(BANNER_MEDIA_ID, "https://signed/banner"));
 
-        service.create(request(), file("icon.png"), null);
+        CommunityResponseDTO response = service.create(request(), file("icon.png"), file("banner.png"));
 
-        verify(mediaServiceI).upload(any(MultipartFile.class),
-                argThat(folder -> isMonthlyIconsFolder((String) folder)));
+        String communityId = response.communityId().toString();
+        verify(mediaServiceI).upload(any(MultipartFile.class), eq("communities/" + communityId + "/icon"));
+        verify(mediaServiceI).upload(any(MultipartFile.class), eq("communities/" + communityId + "/banner"));
+    }
+
+    @Test
+    void deveSubstituirIconeDescartandoOMidiaAntigaAposCommit() {
+        UUID communityId = UUID.randomUUID();
+        UUID newIconId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId))
+                .thenReturn(Optional.of(owned(communityId, ICON_MEDIA_ID, BANNER_MEDIA_ID)));
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/icon")))
+                .thenReturn(new MediaResponse(newIconId, "https://signed/new-icon"));
+
+        CommunityResponseDTO response = service.replaceIcon(communityId, file("icon.png"));
+
+        assertThat(response.icon().mediaId()).isEqualTo(newIconId);
+        assertThat(response.banner().mediaId()).isEqualTo(BANNER_MEDIA_ID);
+        verify(mediaServiceI).deleteAfterCommit(List.of(ICON_MEDIA_ID));
+    }
+
+    @Test
+    void deveRemoverIconeSemApagarOBanner() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        Community community = owned(communityId, ICON_MEDIA_ID, BANNER_MEDIA_ID);
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId))
+                .thenReturn(Optional.of(community));
+
+        service.removeIcon(communityId);
+
+        assertThat(community.getIconMediaId()).isNull();
+        assertThat(community.getBannerMediaId()).isEqualTo(BANNER_MEDIA_ID);
+        verify(mediaServiceI).deleteAfterCommit(List.of(ICON_MEDIA_ID));
+    }
+
+    @Test
+    void naoDeveApagarMidiaAnteriorQuandoNaoHaviaIcone() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId))
+                .thenReturn(Optional.of(owned(communityId, null, BANNER_MEDIA_ID)));
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/icon")))
+                .thenReturn(new MediaResponse(UUID.randomUUID(), "https://signed/icon"));
+
+        service.replaceIcon(communityId, file("icon.png"));
+
+        verify(mediaServiceI).deleteAfterCommit(List.of());
+    }
+
+    @Test
+    void naoDeveTrocarMidiaDeComunidadeDeOutroUsuario() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId))
+                .thenReturn(Optional.of(ownedBy(communityId, UUID.randomUUID(), ICON_MEDIA_ID, null)));
+
+        assertThatThrownBy(() -> service.replaceIcon(communityId, file("icon.png")))
+                .isInstanceOf(ForbiddenException.class);
+
+        // Autorizar depois do upload deixaria um objeto orfao no bucket a cada
+        // tentativa negada.
+        verify(mediaServiceI, never()).upload(any(MultipartFile.class), anyString());
+    }
+
+    @Test
+    void adminPodeTrocarMidiaDeComunidadeDeOutroUsuario() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID, RoleValues.ADMIN);
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId))
+                .thenReturn(Optional.of(ownedBy(communityId, UUID.randomUUID(), ICON_MEDIA_ID, null)));
+        when(mediaServiceI.upload(any(MultipartFile.class), endsWith("/icon")))
+                .thenReturn(new MediaResponse(UUID.randomUUID(), "https://signed/icon"));
+
+        service.replaceIcon(communityId, file("icon.png"));
+
+        verify(mediaServiceI).upload(any(MultipartFile.class), endsWith("/icon"));
+    }
+
+    @Test
+    void naoDeveTrocarMidiaDeComunidadeRemovida() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.removeBanner(communityId))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(mediaServiceI, never()).deleteAfterCommit(anyCollection());
+    }
+
+    private Community owned(UUID communityId, UUID iconMediaId, UUID bannerMediaId) {
+        return ownedBy(communityId, USER_ID, iconMediaId, bannerMediaId);
+    }
+
+    private Community ownedBy(UUID communityId, UUID ownerId, UUID iconMediaId, UUID bannerMediaId) {
+        Community community = persisted("java", iconMediaId, bannerMediaId);
+        community.setCommunityId(communityId);
+        community.setOwnerId(ownerId);
+        return community;
     }
 
     private boolean isMonthlyIconsFolder(String folder) {
@@ -355,8 +459,13 @@ class CommunityServiceImplTest {
     }
 
     private void setAuthenticatedUser(UUID userId) {
+        setAuthenticatedUser(userId, RoleValues.BASIC);
+    }
+
+    private void setAuthenticatedUser(UUID userId, RoleValues role) {
         Authentication auth = new UsernamePasswordAuthenticationToken(
-                userId.toString(), null, List.of(new SimpleGrantedAuthority("ROLE_BASIC")));
+                userId.toString(), null,
+                List.of(new SimpleGrantedAuthority("SCOPE_" + role.name())));
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
 }

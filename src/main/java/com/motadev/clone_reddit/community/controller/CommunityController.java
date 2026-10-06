@@ -50,4 +50,32 @@ public class CommunityController {
     public ResponseEntity<CommunityResponseDTO> getBySlug(@PathVariable String slug) {
         return ResponseEntity.ok(communityServiceI.getBySlug(slug));
     }
+
+    @PutMapping(value = "/{communityId}/icon", consumes = "multipart/form-data")
+    public ResponseEntity<CommunityResponseDTO> replaceIcon(
+            @PathVariable UUID communityId,
+            @RequestPart("file") MultipartFile iconFile
+    ) {
+        return ResponseEntity.ok(communityServiceI.replaceIcon(communityId, iconFile));
+    }
+
+    @PutMapping(value = "/{communityId}/banner", consumes = "multipart/form-data")
+    public ResponseEntity<CommunityResponseDTO> replaceBanner(
+            @PathVariable UUID communityId,
+            @RequestPart("file") MultipartFile bannerFile
+    ) {
+        return ResponseEntity.ok(communityServiceI.replaceBanner(communityId, bannerFile));
+    }
+
+    @DeleteMapping("/{communityId}/icon")
+    public ResponseEntity<Void> removeIcon(@PathVariable UUID communityId) {
+        communityServiceI.removeIcon(communityId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{communityId}/banner")
+    public ResponseEntity<Void> removeBanner(@PathVariable UUID communityId) {
+        communityServiceI.removeBanner(communityId);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -16,4 +16,12 @@ public interface CommunityServiceI {
     CommunityResponseDTO getById(UUID communityId);
 
     CommunityResponseDTO getBySlug(String slug);
+
+    CommunityResponseDTO replaceIcon(UUID communityId, MultipartFile iconFile);
+
+    CommunityResponseDTO replaceBanner(UUID communityId, MultipartFile bannerFile);
+
+    void removeIcon(UUID communityId);
+
+    void removeBanner(UUID communityId);
 }
