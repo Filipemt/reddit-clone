@@ -1,6 +1,7 @@
 package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
+import com.motadev.clone_reddit.auth.logging.AuthEventLog;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -38,7 +39,7 @@ class TokenServiceImplTest {
         jwtEncoder = new NimbusJwtEncoder(new com.nimbusds.jose.jwk.source.ImmutableJWKSet<>(
                 new com.nimbusds.jose.jwk.JWKSet(jwk)));
         jwtDecoder = NimbusJwtDecoder.withPublicKey(TestJwtBuilder.loadPublicKey()).build();
-        service = new TokenServiceImpl(jwtEncoder);
+        service = new TokenServiceImpl(jwtEncoder, new AuthEventLog());
         ReflectionTestUtils.setField(service, "expiresIn", EXPIRES_IN);
         ReflectionTestUtils.setField(service, "issuer", ISSUER);
     }

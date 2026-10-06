@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.auth.service.impl;
 
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
+import com.motadev.clone_reddit.auth.logging.AuthEventLog;
 import com.motadev.clone_reddit.auth.repository.RefreshTokenRepository;
 import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
@@ -10,7 +11,6 @@ import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.user.dtos.response.UserAuthInfo;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -19,22 +19,24 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Service
-@Slf4j
 public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
 
     private final UserServiceI userService;
     private final RefreshTokenRepository refreshRepository;
     private final TokenServiceI tokenService;
+    private final AuthEventLog authEventLog;
 
     @Value("${jwt.refreshExpirationMs}")
     private long refreshExpirationMs;
 
     public RefreshTokenServiceImpl(@Lazy UserServiceI userService,
                                    RefreshTokenRepository refreshRepository,
-                                   TokenServiceI tokenService) {
+                                   TokenServiceI tokenService,
+                                   AuthEventLog authEventLog) {
         this.userService = userService;
         this.refreshRepository = refreshRepository;
         this.tokenService = tokenService;
+        this.authEventLog = authEventLog;
     }
 
     @Override
@@ -47,11 +49,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
 
         RefreshToken saved = refreshRepository.save(token);
 
-        log.atDebug()
-                .addKeyValue("event", "auth.refresh.created")
-                .addKeyValue("userId", authInfo.userId())
-                .setMessage("Refresh token created")
-                .log();
+        authEventLog.refreshCreated(authInfo.userId());
 
         return saved;
     }
@@ -64,21 +62,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
 
         UserAuthInfo authInfo = userService.findAuthInfoById(oldRefresh.getUserId())
                 .orElseThrow(() -> {
-                    log.atWarn()
-                            .addKeyValue("event", "auth.refresh.failed")
-                            .addKeyValue("userId", oldRefresh.getUserId())
-                            .setMessage("User for refresh token no longer exists")
-                            .log();
+                    authEventLog.refreshFailedUserMissing(oldRefresh.getUserId());
                     return new ResourceNotFoundException("User no longer exists.");
                 });
 
         RefreshToken newRefresh = createRefreshToken(authInfo);
 
-        log.atInfo()
-                .addKeyValue("event", "auth.refresh.success")
-                .addKeyValue("userId", authInfo.userId())
-                .setMessage("Refresh token rotated")
-                .log();
+        authEventLog.refreshSuccess(authInfo.userId());
 
         return tokenService.generateToken(authInfo, newRefresh.getToken());
     }
@@ -91,11 +81,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
                     refreshToken.setRevoked(true);
                     refreshRepository.save(refreshToken);
 
-                    log.atInfo()
-                            .addKeyValue("event", "auth.logout")
-                            .addKeyValue("userId", refreshToken.getUserId())
-                            .setMessage("Refresh token revoked")
-                            .log();
+                    authEventLog.logout(refreshToken.getUserId());
                 });
     }
 
@@ -104,29 +90,18 @@ public class RefreshTokenServiceImpl implements RefreshTokenServiceI {
     public void revokeAllByUserId(UUID userId) {
         refreshRepository.revokeAllByUserId(userId);
 
-        log.atInfo()
-                .addKeyValue("event", "user.account.deleted.tokens_revoked")
-                .addKeyValue("userId", userId)
-                .setMessage("All refresh tokens revoked for user")
-                .log();
+        authEventLog.tokensRevoked(userId);
     }
 
     public RefreshToken verify(String tokenValue) {
         RefreshToken token = refreshRepository.findByToken(tokenValue)
                 .orElseThrow(() -> {
-                    log.atWarn()
-                            .addKeyValue("event", "auth.refresh.failed")
-                            .setMessage("Refresh token not found")
-                            .log();
+                    authEventLog.refreshFailedNotFound();
                     return new ResourceNotFoundException("Refresh token not found");
                 });
 
         if (token.isRevoked() || token.getExpiryDate().isBefore(Instant.now())) {
-            log.atWarn()
-                    .addKeyValue("event", "auth.refresh.failed")
-                    .addKeyValue("userId", token.getUserId())
-                    .setMessage("Refresh token invalid or expired")
-                    .log();
+            authEventLog.refreshFailedInvalidOrExpired(token.getUserId());
             throw new ResourceInvalidException("Refresh token invalid or expired");
         }
 

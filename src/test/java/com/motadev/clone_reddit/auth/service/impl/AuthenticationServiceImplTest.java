@@ -3,6 +3,7 @@ package com.motadev.clone_reddit.auth.service.impl;
 import com.motadev.clone_reddit.auth.dtos.request.LoginRequest;
 import com.motadev.clone_reddit.auth.dtos.response.TokenData;
 import com.motadev.clone_reddit.auth.entity.RefreshToken;
+import com.motadev.clone_reddit.auth.logging.AuthEventLog;
 import com.motadev.clone_reddit.auth.service.RefreshTokenServiceI;
 import com.motadev.clone_reddit.auth.service.TokenServiceI;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
@@ -41,7 +42,7 @@ class AuthenticationServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new AuthenticationServiceImpl(userService, tokenService, refreshTokenService);
+        service = new AuthenticationServiceImpl(userService, tokenService, refreshTokenService, new AuthEventLog());
     }
 
     private UserAuthInfo authInfo() {

@@ -4,6 +4,7 @@ import com.motadev.clone_reddit.community.converter.CommunityConverter;
 import com.motadev.clone_reddit.community.dtos.request.CreateCommunityRequestDTO;
 import com.motadev.clone_reddit.community.dtos.response.CommunityResponseDTO;
 import com.motadev.clone_reddit.community.entity.Community;
+import com.motadev.clone_reddit.community.logging.CommunityEventLog;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.community.service.CommunityServiceI;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
@@ -16,7 +17,6 @@ import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -34,7 +34,6 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 @Service
-@Slf4j
 public class CommunityServiceImpl implements CommunityServiceI {
 
     private final AuthenticatedUserProvider authenticatedUserProvider;
@@ -42,6 +41,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
     private final MediaServiceI mediaServiceI;
     private final CommunityConverter communityConverter;
     private final CommunityRepository communityRepository;
+    private final CommunityEventLog communityEventLog;
 
     private static final Sort SORT_NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
 
@@ -51,12 +51,14 @@ public class CommunityServiceImpl implements CommunityServiceI {
                                 UserServiceI userServiceI,
                                 CommunityConverter communityConverter,
                                 AuthenticatedUserProvider authenticatedUserProvider,
-                                MediaServiceI mediaServiceI) {
+                                MediaServiceI mediaServiceI,
+                                CommunityEventLog communityEventLog) {
         this.communityRepository = communityRepository;
         this.userServiceI = userServiceI;
         this.communityConverter = communityConverter;
         this.authenticatedUserProvider = authenticatedUserProvider;
         this.mediaServiceI = mediaServiceI;
+        this.communityEventLog = communityEventLog;
     }
 
     @Override
@@ -152,12 +154,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
         authorizeManagement(community);
 
         if (community.getDeletedAt() != null) {
-            log.atDebug()
-                    .addKeyValue("event", "community.delete.already_deleted")
-                    .addKeyValue("communityId", communityId)
-                    .addKeyValue("userId", userId)
-                    .setMessage("Community was already soft deleted; nothing to do")
-                    .log();
+            communityEventLog.deleteAlreadyDeleted(communityId, userId);
             return;
         }
 
@@ -168,14 +165,11 @@ public class CommunityServiceImpl implements CommunityServiceI {
 
         mediaServiceI.deleteAfterCommit(mediaIds);
 
-        log.atInfo()
-                .addKeyValue("event", "community.delete.success")
-                .addKeyValue("communityId", communityId)
-                .addKeyValue("userId", userId)
-                .addKeyValue("isOwner", community.getOwnerId().equals(userId))
-                .addKeyValue("mediaCount", mediaIds.size())
-                .setMessage("Community soft deleted")
-                .log();
+        communityEventLog.deleteSuccess(
+                communityId,
+                userId,
+                community.getOwnerId().equals(userId),
+                mediaIds.size());
     }
 
     private Community findActiveOrThrow(UUID communityId) {
@@ -194,12 +188,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
             return;
         }
 
-        log.atWarn()
-                .addKeyValue("event", "community.media.forbidden")
-                .addKeyValue("communityId", community.getCommunityId())
-                .addKeyValue("userId", userId)
-                .setMessage("Attempt to change the media of a community the user does not own")
-                .log();
+        communityEventLog.mediaForbidden(community.getCommunityId(), userId);
         throw new ForbiddenException("You are not allowed to change this community.");
     }
 
@@ -274,13 +263,10 @@ public class CommunityServiceImpl implements CommunityServiceI {
                         createCommunityRequestDTO.name())
                 || communityRepository.existsBySlugAndDeletedAtIsNotNull(createCommunityRequestDTO.slug());
 
-        log.atWarn()
-                .addKeyValue("event", "community.create.conflict")
-                .addKeyValue("name", createCommunityRequestDTO.name())
-                .addKeyValue("slug", createCommunityRequestDTO.slug())
-                .addKeyValue("deleted", deleted)
-                .setMessage("Attempt to create a community with an existing name or slug")
-                .log();
+        communityEventLog.createConflict(
+                createCommunityRequestDTO.name(),
+                createCommunityRequestDTO.slug(),
+                deleted);
         throw new ResourceAlreadyExists("Resource Already Exists.");
     }
 

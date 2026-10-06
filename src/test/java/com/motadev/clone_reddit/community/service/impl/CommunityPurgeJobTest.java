@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.community.service.impl;
 
 import com.motadev.clone_reddit.community.config.CommunityPurgeProperties;
 import com.motadev.clone_reddit.community.entity.Community;
+import com.motadev.clone_reddit.community.logging.CommunityEventLog;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
 import org.junit.jupiter.api.BeforeEach;
@@ -98,7 +99,8 @@ class CommunityPurgeJobTest {
                 communityRepository,
                 mediaServiceI,
                 jdbcTemplate,
-                transactionTemplate
+                transactionTemplate,
+                new CommunityEventLog()
         );
     }
 }
