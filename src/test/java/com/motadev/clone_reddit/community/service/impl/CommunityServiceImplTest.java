@@ -9,6 +9,7 @@ import com.motadev.clone_reddit.community.entity.CommunityTopic;
 import com.motadev.clone_reddit.community.entity.CommunityType;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.auth.logging.AuthEventLog;
+import com.motadev.clone_reddit.community.logging.CommunityEventLog;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
 import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
@@ -83,7 +84,8 @@ class CommunityServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new CommunityServiceImpl(communityRepository, userServiceI,
-                new CommunityConverter(entityManager), new AuthenticatedUserProvider(new AuthEventLog()), mediaServiceI);
+                new CommunityConverter(entityManager), new AuthenticatedUserProvider(new AuthEventLog()), mediaServiceI,
+                new CommunityEventLog());
 
         setAuthenticatedUser(USER_ID);
         stubReferences();

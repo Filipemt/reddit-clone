@@ -2,9 +2,9 @@ package com.motadev.clone_reddit.community.service.impl;
 
 import com.motadev.clone_reddit.community.config.CommunityPurgeProperties;
 import com.motadev.clone_reddit.community.entity.Community;
+import com.motadev.clone_reddit.community.logging.CommunityEventLog;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -17,7 +17,6 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-@Slf4j
 @Service
 public class CommunityPurgeJob {
 
@@ -26,17 +25,20 @@ public class CommunityPurgeJob {
     private final MediaServiceI mediaServiceI;
     private final JdbcTemplate jdbcTemplate;
     private final TransactionTemplate transactionTemplate;
+    private final CommunityEventLog communityEventLog;
 
     public CommunityPurgeJob(CommunityPurgeProperties properties,
                              CommunityRepository communityRepository,
                              MediaServiceI mediaServiceI,
                              JdbcTemplate jdbcTemplate,
-                             TransactionTemplate transactionTemplate) {
+                             TransactionTemplate transactionTemplate,
+                             CommunityEventLog communityEventLog) {
         this.properties = properties;
         this.communityRepository = communityRepository;
         this.mediaServiceI = mediaServiceI;
         this.jdbcTemplate = jdbcTemplate;
         this.transactionTemplate = transactionTemplate;
+        this.communityEventLog = communityEventLog;
     }
 
     @Scheduled(fixedDelayString = "60000")
@@ -46,11 +48,7 @@ public class CommunityPurgeJob {
         }
 
         if (!acquireLock()) {
-            log.atDebug()
-                    .addKeyValue("event", "community.purge.lock_not_acquired")
-                    .addKeyValue("advisoryLockId", properties.advisoryLockId())
-                    .setMessage("Another instance holds the purge lock; skipping run")
-                    .log();
+            communityEventLog.purgeLockNotAcquired(properties.advisoryLockId());
             return;
         }
 
@@ -79,16 +77,9 @@ public class CommunityPurgeJob {
             }
 
             if (purged > 0) {
-                log.atInfo()                        .addKeyValue("event", "community.purge.success")
-                        .addKeyValue("purgedCount", purged)
-                        .addKeyValue("retentionDays", properties.retentionDays())
-                        .setMessage("Purged communities past retention window")
-                        .log();
+                communityEventLog.purgeSuccess(purged, properties.retentionDays());
             } else {
-                log.atDebug()                        .addKeyValue("event", "community.purge.nothing")
-                        .addKeyValue("retentionDays", properties.retentionDays())
-                        .setMessage("No communities eligible for purge")
-                        .log();
+                communityEventLog.purgeNothing(properties.retentionDays());
             }
         } finally {
             releaseLock();
