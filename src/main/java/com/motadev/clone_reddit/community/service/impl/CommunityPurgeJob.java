@@ -96,18 +96,18 @@ public class CommunityPurgeJob {
     }
 
     private boolean acquireLock() {
-        Long result = jdbcTemplate.queryForObject(
+        Boolean result = jdbcTemplate.queryForObject(
                 "SELECT pg_try_advisory_lock(?)",
-                Long.class,
+                Boolean.class,
                 properties.advisoryLockId()
         );
-        return result != null && result == 1L;
+        return Boolean.TRUE.equals(result);
     }
 
     private void releaseLock() {
         jdbcTemplate.queryForObject(
                 "SELECT pg_advisory_unlock(?)",
-                Long.class,
+                Boolean.class,
                 properties.advisoryLockId()
         );
     }
