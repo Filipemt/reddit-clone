@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="add-community-soft-delete" author="motadev">
+        <addColumn tableName="tb_community">
+            <column name="deleted_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+            <column name="deleted_by" type="UUID">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <addForeignKeyConstraint baseTableName="tb_community"
+                                 baseColumnNames="deleted_by"
+                                 constraintName="fk_community_deleted_by"
+                                 referencedTableName="tb_users"
+                                 referencedColumnNames="user_id"/>
+    </changeSet>
+
+    <changeSet id="add-community-soft-delete-indexes" author="motadev">
+        <sql dbms="postgresql">
+            CREATE INDEX idx_community_active_created_at
+                ON tb_community (created_at DESC)
+                WHERE deleted_at IS NULL
+        </sql>
+
+        <sql dbms="postgresql">
+            CREATE INDEX idx_community_deleted_at
+                ON tb_community (deleted_at)
+                WHERE deleted_at IS NOT NULL
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

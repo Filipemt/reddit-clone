@@ -84,4 +84,10 @@ public class Community {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = true)
     private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at", nullable = true)
+    private LocalDateTime deletedAt;
+
+    @Column(name = "deleted_by", nullable = true)
+    private UUID deletedBy;
 }
