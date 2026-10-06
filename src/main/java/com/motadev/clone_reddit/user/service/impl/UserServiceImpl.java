@@ -11,11 +11,11 @@ import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
 import com.motadev.clone_reddit.user.entity.Role;
 import com.motadev.clone_reddit.user.entity.User;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
+import com.motadev.clone_reddit.user.logging.UserEventLog;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@Slf4j
 public class UserServiceImpl implements UserServiceI {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -31,19 +30,22 @@ public class UserServiceImpl implements UserServiceI {
     private final RefreshTokenServiceI refreshTokenService;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticatedUserProvider authenticatedUserProvider;
+    private final UserEventLog userEventLog;
 
     public UserServiceImpl(UserRepository userRepository,
                            RoleRepository roleRepository,
                            UserConvert userConvert,
                            RefreshTokenServiceI refreshTokenService,
                            PasswordEncoder passwordEncoder,
-                           AuthenticatedUserProvider authenticatedUserProvider) {
+                           AuthenticatedUserProvider authenticatedUserProvider,
+                           UserEventLog userEventLog) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userConvert = userConvert;
         this.refreshTokenService = refreshTokenService;
         this.passwordEncoder = passwordEncoder;
         this.authenticatedUserProvider = authenticatedUserProvider;
+        this.userEventLog = userEventLog;
     }
 
     @Override
@@ -57,23 +59,14 @@ public class UserServiceImpl implements UserServiceI {
 
         User user = userRepository.save(userConvert.convertDtoToEntity(userRequest, encodedPassword, basicRole));
 
-        log.atInfo()
-                .addKeyValue("event", "user.register.success")
-                .addKeyValue("userId", user.getUserId())
-                .addKeyValue("username", user.getUsername())
-                .setMessage("User registered")
-                .log();
+        userEventLog.registerSuccess(user.getUserId(), user.getUsername());
     }
 
     @Override
     public UserResponseDTO getUserById(UUID userId) {
         User user = findUserOrThrow(userId);
 
-        log.atInfo()
-                .addKeyValue("event", "user.get.success")
-                .addKeyValue("userId", userId)
-                .setMessage("User fetched")
-                .log();
+        userEventLog.getSuccess(userId);
 
         return userConvert.convertEntityToDto(user);
     }
@@ -87,12 +80,7 @@ public class UserServiceImpl implements UserServiceI {
         user.setActive(false);
         refreshTokenService.revokeAllByUserId(userId);
 
-        log.atInfo()
-                .addKeyValue("event", "user.account.deleted")
-                .addKeyValue("userId", userId)
-                .addKeyValue("username", user.getUsername())
-                .setMessage("User account soft deleted")
-                .log();
+        userEventLog.accountDeleted(userId, user.getUsername());
     }
 
     @Override
@@ -110,20 +98,11 @@ public class UserServiceImpl implements UserServiceI {
 
     private void validateUniqueUser(UserRequestDTO userRequest) {
         if (userRepository.existsByUsername(userRequest.username())) {
-            log.atWarn()
-                    .addKeyValue("event", "user.register.conflict")
-                    .addKeyValue("field", "username")
-                    .addKeyValue("username", userRequest.username())
-                    .setMessage("Attempt to register with an existing username")
-                    .log();
+            userEventLog.registerConflictUsername(userRequest.username());
             throw new ResourceAlreadyExists("Resource Already Exists.");
         }
         if (userRepository.existsByEmail(userRequest.email())) {
-            log.atWarn()
-                    .addKeyValue("event", "user.register.conflict")
-                    .addKeyValue("field", "email")
-                    .setMessage("Attempt to register with an existing email")
-                    .log();
+            userEventLog.registerConflictEmail();
             throw new ResourceAlreadyExists("Resource Already Exists.");
         }
     }
@@ -132,11 +111,7 @@ public class UserServiceImpl implements UserServiceI {
         // Todo: Adicionar consulta para buscar usuários ativos
         return userRepository.findById(userId)
                 .orElseThrow(() -> {
-                    log.atWarn()
-                            .addKeyValue("event", "user.not_found")
-                            .addKeyValue("userId", userId)
-                            .setMessage("User not found")
-                            .log();
+                    userEventLog.notFound(userId);
                     return new ResourceNotFoundException("User not found.");
                 });
     }

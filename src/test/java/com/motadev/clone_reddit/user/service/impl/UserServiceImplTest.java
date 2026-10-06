@@ -12,6 +12,7 @@ import com.motadev.clone_reddit.user.dtos.response.UserResponseDTO;
 import com.motadev.clone_reddit.user.entity.Role;
 import com.motadev.clone_reddit.user.entity.User;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
+import com.motadev.clone_reddit.user.logging.UserEventLog;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -60,7 +61,7 @@ class UserServiceImplTest {
         passwordEncoder = new BCryptPasswordEncoder();
         userConvert = new UserConvert(roleRepository, passwordEncoder, userRepository);
         service = new UserServiceImpl(userRepository, roleRepository, userConvert, refreshTokenService, passwordEncoder,
-                new AuthenticatedUserProvider());
+                new AuthenticatedUserProvider(), new UserEventLog());
     }
 
     @AfterEach
