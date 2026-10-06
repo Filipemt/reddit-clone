@@ -3,11 +3,11 @@ package com.motadev.clone_reddit.media.service.impl;
 import com.motadev.clone_reddit.media.converter.MediaConverter;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.entity.Media;
+import com.motadev.clone_reddit.media.logging.MediaEventLog;
 import com.motadev.clone_reddit.media.repository.MediaRepository;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
 import com.motadev.clone_reddit.media.validator.MediaFileValidator;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -30,7 +30,6 @@ import java.util.UUID;
 import static java.util.stream.Collectors.toMap;
 
 @Service
-@Slf4j
 public class S3ServiceImpl implements MediaServiceI {
 
     private final S3Client s3Client;
@@ -38,6 +37,7 @@ public class S3ServiceImpl implements MediaServiceI {
     private final MediaRepository mediaRepository;
     private final MediaConverter mediaConverter;
     private final MediaFileValidator mediaFileValidator;
+    private final MediaEventLog mediaEventLog;
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
@@ -49,12 +49,14 @@ public class S3ServiceImpl implements MediaServiceI {
                          S3Presigner s3Presigner,
                          MediaRepository mediaRepository,
                          MediaConverter mediaConverter,
-                         MediaFileValidator mediaFileValidator) {
+                         MediaFileValidator mediaFileValidator,
+                         MediaEventLog mediaEventLog) {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.mediaRepository = mediaRepository;
         this.mediaConverter = mediaConverter;
         this.mediaFileValidator = mediaFileValidator;
+        this.mediaEventLog = mediaEventLog;
     }
 
     @Override
@@ -88,12 +90,7 @@ public class S3ServiceImpl implements MediaServiceI {
 
     private void registerRollbackOnRollback(Media media) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            log.atDebug()
-                    .addKeyValue("event", "media.upload.no_active_transaction")
-                    .addKeyValue("mediaId", media.getMediaId())
-                    .addKeyValue("objectKey", media.getObjectKey())
-                    .setMessage("Upload performed outside a transaction; S3 rollback is the caller's responsibility.")
-                    .log();
+            mediaEventLog.uploadNoActiveTransaction(media.getMediaId(), media.getObjectKey());
             return;
         }
 
@@ -106,12 +103,7 @@ public class S3ServiceImpl implements MediaServiceI {
                 }
 
                 if (status == STATUS_UNKNOWN) {
-                    log.atWarn()
-                            .addKeyValue("event", "media.upload.rollback_unknown")
-                            .addKeyValue("mediaId", media.getMediaId())
-                            .addKeyValue("objectKey", media.getObjectKey())
-                            .setMessage("Transaction outcome is unknown; the S3 object was kept to avoid breaking a reference that may have been committed.")
-                            .log();
+                    mediaEventLog.uploadRollbackUnknown(media.getMediaId(), media.getObjectKey());
                 }
             }
         });
@@ -125,13 +117,7 @@ public class S3ServiceImpl implements MediaServiceI {
                     .build());
 
         } catch (RuntimeException ex) {
-            log.atError()
-                    .setCause(ex)
-                    .addKeyValue("event", "media.upload.rollback_failed")
-                    .addKeyValue("bucket", bucket)
-                    .addKeyValue("objectKey", objectKey)
-                    .setMessage("Failed to delete the S3 object during upload rollback; the object may be orphaned.")
-                    .log();
+            mediaEventLog.uploadRollbackFailed(bucket, objectKey, ex);
         }
     }
 
@@ -170,11 +156,7 @@ public class S3ServiceImpl implements MediaServiceI {
 
     private void registerDeleteOnCommit(List<Media> medias) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            log.atDebug()
-                    .addKeyValue("event", "media.delete.no_active_transaction")
-                    .addKeyValue("mediaCount", medias.size())
-                    .setMessage("Media deletion performed outside a transaction; the S3 objects are deleted right away.")
-                    .log();
+            mediaEventLog.deleteNoActiveTransaction(medias.size());
             medias.forEach(media -> deleteObjectQuietly(media.getBucket(), media.getObjectKey()));
             return;
         }

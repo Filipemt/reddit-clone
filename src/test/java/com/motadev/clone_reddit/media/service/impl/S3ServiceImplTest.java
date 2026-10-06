@@ -3,6 +3,7 @@ package com.motadev.clone_reddit.media.service.impl;
 import com.motadev.clone_reddit.media.converter.MediaConverter;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.entity.Media;
+import com.motadev.clone_reddit.media.logging.MediaEventLog;
 import com.motadev.clone_reddit.media.repository.MediaRepository;
 import com.motadev.clone_reddit.media.validator.MediaFileValidator;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
@@ -66,7 +67,7 @@ class S3ServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new S3ServiceImpl(s3Client, s3Presigner, mediaRepository,
-                new MediaConverter(), mediaFileValidator);
+                new MediaConverter(), mediaFileValidator, new MediaEventLog());
         ReflectionTestUtils.setField(service, "bucketName", BUCKET);
         presigned = presignedWithUrl(SIGNED_URL);
     }
