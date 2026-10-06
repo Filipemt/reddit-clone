@@ -24,6 +24,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -84,7 +85,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
     @Override
     @Transactional
     public CommunityResponseDTO replaceIcon(UUID communityId, MultipartFile iconFile) {
-        Community community = findManageableOrThrow(communityId);
+        Community community = findActiveOrThrow(communityId);
 
         MediaResponse media = mediaServiceI.upload(iconFile, iconFolderOf(communityId));
 
@@ -94,7 +95,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
     @Override
     @Transactional
     public CommunityResponseDTO replaceBanner(UUID communityId, MultipartFile bannerFile) {
-        Community community = findManageableOrThrow(communityId);
+        Community community = findActiveOrThrow(communityId);
 
         MediaResponse media = mediaServiceI.upload(bannerFile, bannerFolderOf(communityId));
 
@@ -104,13 +105,13 @@ public class CommunityServiceImpl implements CommunityServiceI {
     @Override
     @Transactional
     public void removeIcon(UUID communityId) {
-        clearMediaSlot(findManageableOrThrow(communityId), true);
+        clearMediaSlot(findActiveOrThrow(communityId), true);
     }
 
     @Override
     @Transactional
     public void removeBanner(UUID communityId) {
-        clearMediaSlot(findManageableOrThrow(communityId), false);
+        clearMediaSlot(findActiveOrThrow(communityId), false);
     }
 
     private CommunityResponseDTO swapMediaSlot(Community community, MediaResponse media, boolean iconSlot) {
@@ -141,7 +142,41 @@ public class CommunityServiceImpl implements CommunityServiceI {
         return iconSlot ? community.getIconMediaId() : community.getBannerMediaId();
     }
 
-    private Community findManageableOrThrow(UUID communityId) {
+    @Override
+    @Transactional
+    public void delete(UUID communityId) {
+        Community community = communityRepository.findByCommunityId(communityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Community not found."));
+        UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
+
+        authorizeManagement(community);
+
+        if (community.getDeletedAt() != null) {
+            log.atDebug()                            .addKeyValue("event", "community.delete.already_deleted")
+                    .addKeyValue("communityId", communityId)
+                    .addKeyValue("userId", userId)
+                    .setMessage("Community was already soft deleted; nothing to do")
+                    .log();
+            return;
+        }
+
+        Collection<UUID> mediaIds = idsOf(community.getIconMediaId(), community.getBannerMediaId());
+
+        community.setDeletedAt(LocalDateTime.now());
+        community.setDeletedBy(userId);
+
+        mediaServiceI.deleteAfterCommit(mediaIds);
+
+        log.atInfo()                            .addKeyValue("event", "community.delete.success")
+                .addKeyValue("communityId", communityId)
+                .addKeyValue("userId", userId)
+                .addKeyValue("isOwner", community.getOwnerId().equals(userId))
+                .addKeyValue("mediaCount", mediaIds.size())
+                .setMessage("Community soft deleted")
+                .log();
+    }
+
+    private Community findActiveOrThrow(UUID communityId) {
         Community community = communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Community not found."));
 
@@ -228,14 +263,25 @@ public class CommunityServiceImpl implements CommunityServiceI {
     }
 
     private void validateCommunityUniqueness(CreateCommunityRequestDTO createCommunityRequestDTO) {
-        if (communityRepository.existsByNameOrSlug(createCommunityRequestDTO.name(), createCommunityRequestDTO.slug())) {
-            log.atWarn()                    .addKeyValue("event", "community.create.conflict")
-                    .addKeyValue("name", createCommunityRequestDTO.name())
-                    .addKeyValue("slug", createCommunityRequestDTO.slug())
-                    .setMessage("Attempt to create a community with an existing name or slug")
-                    .log();
-            throw new ResourceAlreadyExists("Resource Already Exists.");
+        if (!communityRepository.existsByNameOrSlug(createCommunityRequestDTO.name(), createCommunityRequestDTO.slug())) {
+            return;
         }
+
+        // existsByNameOrSlug nao filtra removed, entao um nome de comunidade apagada
+        // ainda aparece aqui e segue reservado ate a purga liberar a linha. A
+        // resposta e a mesma para um nome ativo e para um reservado; o operador
+        // precisa do detalhe, o cliente nao.
+        boolean deleted = communityRepository.existsByNameAndDeletedAtIsNotNull(
+                        createCommunityRequestDTO.name())
+                || communityRepository.existsBySlugAndDeletedAtIsNotNull(createCommunityRequestDTO.slug());
+
+        log.atWarn()                            .addKeyValue("event", "community.create.conflict")
+                .addKeyValue("name", createCommunityRequestDTO.name())
+                .addKeyValue("slug", createCommunityRequestDTO.slug())
+                .addKeyValue("deleted", deleted)
+                .setMessage("Attempt to create a community with an existing name or slug")
+                .log();
+        throw new ResourceAlreadyExists("Resource Already Exists.");
     }
 
     private MediaResponse uploadIfPresent(MultipartFile file, String folder) {

@@ -27,4 +27,10 @@ public interface CommunityRepository extends JpaRepository<Community, UUID> {
     boolean existsBySlug(String slug);
 
     boolean existsByName(String name);
+
+    boolean existsByNameAndDeletedAtIsNotNull(String name);
+
+    boolean existsBySlugAndDeletedAtIsNotNull(String slug);
+
+    Optional<Community> findByCommunityId(UUID communityId);
 }

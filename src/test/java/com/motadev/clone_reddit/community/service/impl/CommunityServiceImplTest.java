@@ -57,6 +57,7 @@ import static org.mockito.ArgumentMatchers.endsWith;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -252,6 +253,97 @@ class CommunityServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(mediaServiceI, never()).deleteAfterCommit(anyCollection());
+    }
+
+    @Test
+    void deveMarcarComunidadeComoRemovidaSemApagarALinha() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        Community community = ownedBy(communityId, USER_ID, ICON_MEDIA_ID, BANNER_MEDIA_ID);
+        when(communityRepository.findByCommunityId(communityId)).thenReturn(Optional.of(community));
+
+        service.delete(communityId);
+
+        assertThat(community.getDeletedAt()).isNotNull();
+        assertThat(community.getDeletedBy()).isEqualTo(USER_ID);
+        verify(communityRepository, never()).delete(any(Community.class));
+        verify(communityRepository, never()).deleteAll();
+    }
+
+    @Test
+    void deveApagarAMidiaDaComunidadeRemovida() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        when(communityRepository.findByCommunityId(communityId))
+                .thenReturn(Optional.of(ownedBy(communityId, USER_ID, ICON_MEDIA_ID, BANNER_MEDIA_ID)));
+
+        service.delete(communityId);
+
+        verify(mediaServiceI).deleteAfterCommit(List.of(ICON_MEDIA_ID, BANNER_MEDIA_ID));
+    }
+
+    @Test
+    void naoDeveApagarMidiaDeComunidadeRemovidaDuasVezes() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        when(communityRepository.findByCommunityId(communityId))
+                .thenReturn(Optional.of(ownedBy(communityId, USER_ID, ICON_MEDIA_ID, null)));
+
+        service.delete(communityId);
+        service.delete(communityId);
+
+        // O segundo DELETE precisa responder 204 sem tocar no S3 de novo, senao o
+        // idempotente custaria uma presign inutil e um delete sem registro.
+        verify(mediaServiceI, times(1)).deleteAfterCommit(List.of(ICON_MEDIA_ID));
+    }
+
+    @Test
+    void deveMarcarQuemRemoveuComoAdminQuandoNaoEOwner() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID, RoleValues.ADMIN);
+        when(communityRepository.findByCommunityId(communityId))
+                .thenReturn(Optional.of(ownedBy(communityId, UUID.randomUUID(), null, null)));
+
+        service.delete(communityId);
+
+        verify(mediaServiceI).deleteAfterCommit(List.of());
+    }
+
+    @Test
+    void naoDeveRemoverComunidadeDeOutroUsuario() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        Community community = ownedBy(communityId, UUID.randomUUID(), ICON_MEDIA_ID, null);
+        when(communityRepository.findByCommunityId(communityId)).thenReturn(Optional.of(community));
+
+        assertThatThrownBy(() -> service.delete(communityId))
+                .isInstanceOf(ForbiddenException.class);
+
+        assertThat(community.getDeletedAt()).isNull();
+        verify(mediaServiceI, never()).deleteAfterCommit(anyCollection());
+    }
+
+    @Test
+    void naoDeveRemoverComunidadeInexistente() {
+        UUID communityId = UUID.randomUUID();
+        setAuthenticatedUser(USER_ID);
+        when(communityRepository.findByCommunityId(communityId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(communityId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void deveInformarNoLogQuandoOConflitoVemDeComunidadeRemovida() {
+        when(communityRepository.existsByNameOrSlug(anyString(), anyString())).thenReturn(true);
+        when(communityRepository.existsBySlugAndDeletedAtIsNotNull("java")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.create(request(), null, null))
+                .isInstanceOf(ResourceAlreadyExists.class);
+
+        // A resposta ao cliente e a mesma nos dois casos; so o log separa um nome
+        // ativo de um nome ainda reservado pela retencao.
+        verify(communityRepository).existsByNameAndDeletedAtIsNotNull("Java");
     }
 
     private Community owned(UUID communityId, UUID iconMediaId, UUID bannerMediaId) {

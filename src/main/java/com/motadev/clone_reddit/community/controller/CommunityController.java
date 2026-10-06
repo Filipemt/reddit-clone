@@ -78,4 +78,10 @@ public class CommunityController {
         communityServiceI.removeBanner(communityId);
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/{communityId}")
+    public ResponseEntity<Void> delete(@PathVariable UUID communityId) {
+        communityServiceI.delete(communityId);
+        return ResponseEntity.noContent().build();
+    }
 }

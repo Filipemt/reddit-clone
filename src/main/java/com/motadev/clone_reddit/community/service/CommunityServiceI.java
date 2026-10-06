@@ -24,4 +24,6 @@ public interface CommunityServiceI {
     void removeIcon(UUID communityId);
 
     void removeBanner(UUID communityId);
+
+    void delete(UUID communityId);
 }
