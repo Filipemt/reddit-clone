@@ -13,4 +13,8 @@ public interface CommentServiceI {
     List<CommentResponseDTO> listTreeByPost(UUID postId);
 
     void delete(UUID commentId);
+
+    UUID applyVoteDelta(UUID commentId, long scoreDelta, long upDelta, long downDelta);
+
+    long requireActiveScore(UUID commentId);
 }
