@@ -69,4 +69,14 @@ public interface CommunityRepository extends JpaRepository<Community, UUID> {
     @Query(value = "UPDATE tb_community SET member_count = member_count - 1 WHERE community_id = :communityId",
             nativeQuery = true)
     int decrementMemberCount(@Param("communityId") UUID communityId);
+
+    @Modifying
+    @Query(value = """
+            UPDATE tb_community
+               SET deleted_at = :deletedAt,
+                   deleted_by = :ownerId
+             WHERE owner_id = :ownerId
+               AND deleted_at IS NULL
+            """, nativeQuery = true)
+    int softDeleteAllOwnedBy(@Param("ownerId") UUID ownerId, @Param("deletedAt") LocalDateTime deletedAt);
 }

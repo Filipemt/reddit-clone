@@ -1,5 +1,6 @@
 package com.motadev.clone_reddit.community.logging;
 
+import com.motadev.clone_reddit.community.service.impl.CommunityAccountDeletionHandler;
 import com.motadev.clone_reddit.community.service.impl.CommunityMembershipServiceImpl;
 import com.motadev.clone_reddit.community.service.impl.CommunityPurgeJob;
 import com.motadev.clone_reddit.community.service.impl.CommunityServiceImpl;
@@ -15,6 +16,7 @@ public class CommunityEventLog {
     private final Logger communityLog = LoggerFactory.getLogger(CommunityServiceImpl.class);
     private final Logger purgeLog = LoggerFactory.getLogger(CommunityPurgeJob.class);
     private final Logger membershipLog = LoggerFactory.getLogger(CommunityMembershipServiceImpl.class);
+    private final Logger accountDeletionLog = LoggerFactory.getLogger(CommunityAccountDeletionHandler.class);
 
     public CommunityEventLog() {
     }
@@ -135,6 +137,24 @@ public class CommunityEventLog {
                 .addKeyValue("communityId", communityId)
                 .addKeyValue("userId", userId)
                 .setMessage("Community owner attempted to leave the community")
+                .log();
+    }
+
+    public void membershipDeactivated(UUID userId, int membershipCount) {
+        accountDeletionLog.atInfo()
+                .addKeyValue("event", "community.membership.deactivated")
+                .addKeyValue("userId", userId)
+                .addKeyValue("membershipCount", membershipCount)
+                .setMessage("Memberships deactivated after account deletion")
+                .log();
+    }
+
+    public void ownerAccountDeleted(UUID userId, int communityCount) {
+        accountDeletionLog.atInfo()
+                .addKeyValue("event", "community.delete.owner_account_deleted")
+                .addKeyValue("userId", userId)
+                .addKeyValue("communityCount", communityCount)
+                .setMessage("Owned communities soft deleted after account deletion")
                 .log();
     }
 }

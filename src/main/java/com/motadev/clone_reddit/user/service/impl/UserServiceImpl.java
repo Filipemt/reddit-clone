@@ -14,11 +14,13 @@ import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.logging.UserEventLog;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
+import com.motadev.clone_reddit.user.service.UserAccountDeletionHandler;
 import com.motadev.clone_reddit.user.service.UserServiceI;
 import jakarta.transaction.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +33,7 @@ public class UserServiceImpl implements UserServiceI {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticatedUserProvider authenticatedUserProvider;
     private final UserEventLog userEventLog;
+    private final List<UserAccountDeletionHandler> accountDeletionHandlers;
 
     public UserServiceImpl(UserRepository userRepository,
                            RoleRepository roleRepository,
@@ -38,7 +41,8 @@ public class UserServiceImpl implements UserServiceI {
                            RefreshTokenServiceI refreshTokenService,
                            PasswordEncoder passwordEncoder,
                            AuthenticatedUserProvider authenticatedUserProvider,
-                           UserEventLog userEventLog) {
+                           UserEventLog userEventLog,
+                           List<UserAccountDeletionHandler> accountDeletionHandlers) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userConvert = userConvert;
@@ -46,6 +50,7 @@ public class UserServiceImpl implements UserServiceI {
         this.passwordEncoder = passwordEncoder;
         this.authenticatedUserProvider = authenticatedUserProvider;
         this.userEventLog = userEventLog;
+        this.accountDeletionHandlers = accountDeletionHandlers;
     }
 
     @Override
@@ -79,6 +84,7 @@ public class UserServiceImpl implements UserServiceI {
 
         user.setActive(false);
         refreshTokenService.revokeAllByUserId(userId);
+        accountDeletionHandlers.forEach(handler -> handler.onAccountDeleted(userId));
 
         userEventLog.accountDeleted(userId, user.getUsername());
     }

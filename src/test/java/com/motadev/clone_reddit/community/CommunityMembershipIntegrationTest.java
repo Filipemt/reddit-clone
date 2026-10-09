@@ -211,6 +211,85 @@ class CommunityMembershipIntegrationTest {
         assertThat(content).allSatisfy(item -> assertThat(item.get("isMember")).isEqualTo(true));
     }
 
+    @Test
+    void deletingMemberAccountDeactivatesMembershipsAndDecrementsCounts() {
+        UUID ownerId = registerAndGetId(uniqueUser());
+        UUID first = createCommunity(ownerId, CommunityTypeEnum.PUBLIC);
+        UUID second = createCommunity(ownerId, CommunityTypeEnum.PUBLIC);
+        String token = registerAndLogin(uniqueUser());
+        join(token, first);
+        join(token, second);
+
+        assertThat(deleteAccount(token).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        assertThat(memberCount(first)).isZero();
+        assertThat(memberCount(second)).isZero();
+        assertThat(membershipRows(first)).isEqualTo(1);
+        assertThat(activeMembershipRows(first)).isZero();
+        assertThat(activeMembershipRows(second)).isZero();
+    }
+
+    @Test
+    void deletingOwnerAccountSoftDeletesOwnedCommunities() {
+        String owner = uniqueUser();
+        String ownerToken = registerAndLogin(owner);
+        UUID communityId = UUID.fromString((String) createCommunityViaApi(ownerToken).getBody().get("communityId"));
+        String memberToken = registerAndLogin(uniqueUser());
+        join(memberToken, communityId);
+
+        assertThat(deleteAccount(ownerToken).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        UUID ownerId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM tb_users WHERE username = ?", UUID.class, owner);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT deleted_by FROM tb_community WHERE community_id = ? AND deleted_at IS NOT NULL",
+                UUID.class, communityId)).isEqualTo(ownerId);
+        assertThat(memberCount(communityId)).isEqualTo(1);
+        assertThat(activeMembershipRows(communityId)).isEqualTo(1);
+        assertThat(rest.exchange("/communities/{id}", HttpMethod.GET,
+                new HttpEntity<>(bearer(memberToken)), Map.class, communityId).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void concurrentAccountDeletionsSharingCommunitiesKeepCountsConsistent() throws Exception {
+        UUID ownerId = registerAndGetId(uniqueUser());
+        List<UUID> communities = List.of(
+                createCommunity(ownerId, CommunityTypeEnum.PUBLIC),
+                createCommunity(ownerId, CommunityTypeEnum.PUBLIC),
+                createCommunity(ownerId, CommunityTypeEnum.PUBLIC));
+
+        List<String> tokens = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            String token = registerAndLogin(uniqueUser());
+            communities.forEach(communityId -> join(token, communityId));
+            tokens.add(token);
+        }
+
+        List<Callable<HttpStatus>> calls = new ArrayList<>();
+        for (String token : tokens) {
+            calls.add(() -> HttpStatus.valueOf(deleteAccount(token).getStatusCode().value()));
+        }
+
+        for (Future<HttpStatus> result : executor.invokeAll(calls)) {
+            assertThat(result.get()).isEqualTo(HttpStatus.NO_CONTENT);
+        }
+        assertThat(communities).allSatisfy(communityId -> {
+            assertThat(memberCount(communityId)).isZero();
+            assertThat(activeMembershipRows(communityId)).isZero();
+        });
+    }
+
+    private ResponseEntity<Void> deleteAccount(String token) {
+        return rest.exchange("/users/me", HttpMethod.DELETE, new HttpEntity<>(bearer(token)), Void.class);
+    }
+
+    private long activeMembershipRows(UUID communityId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM tb_community_membership WHERE community_id = ? AND deactivated_at IS NULL",
+                Long.class, communityId);
+    }
+
     private ResponseEntity<Map> createCommunityViaApi(String token) {
         String slug = "c-" + UUID.randomUUID().toString().substring(0, 8);
 

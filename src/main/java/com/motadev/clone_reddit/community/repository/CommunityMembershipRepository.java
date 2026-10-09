@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +37,28 @@ public interface CommunityMembershipRepository extends JpaRepository<CommunityMe
     int deleteActive(@Param("communityId") UUID communityId,
                      @Param("userId") UUID userId,
                      @Param("roleId") Long roleId);
+
+    @Modifying
+    @Query(value = """
+            WITH deactivated AS (
+                UPDATE tb_community_membership
+                   SET deactivated_at = :deactivatedAt
+                 WHERE user_id = :userId
+                   AND deactivated_at IS NULL
+                RETURNING community_id
+            ), locked AS (
+                SELECT community_id FROM tb_community
+                 WHERE community_id IN (SELECT community_id FROM deactivated)
+                 ORDER BY community_id
+                   FOR UPDATE
+            )
+            UPDATE tb_community c
+               SET member_count = c.member_count - 1
+              FROM locked l
+             WHERE c.community_id = l.community_id
+            """, nativeQuery = true)
+    int deactivateAllAndDecrementMemberCounts(@Param("userId") UUID userId,
+                                              @Param("deactivatedAt") LocalDateTime deactivatedAt);
 
     @Query("""
             SELECT m.id.communityId FROM CommunityMembership m

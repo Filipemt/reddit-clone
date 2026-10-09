@@ -16,6 +16,7 @@ import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import com.motadev.clone_reddit.user.logging.UserEventLog;
 import com.motadev.clone_reddit.user.repository.RoleRepository;
 import com.motadev.clone_reddit.user.repository.UserRepository;
+import com.motadev.clone_reddit.user.service.UserAccountDeletionHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,8 @@ class UserServiceImplTest {
     private RoleRepository roleRepository;
     @Mock
     private RefreshTokenServiceI refreshTokenService;
+    @Mock
+    private UserAccountDeletionHandler accountDeletionHandler;
 
     private BCryptPasswordEncoder passwordEncoder;
     private UserConvert userConvert;
@@ -62,7 +65,7 @@ class UserServiceImplTest {
         passwordEncoder = new BCryptPasswordEncoder();
         userConvert = new UserConvert(roleRepository, passwordEncoder, userRepository);
         service = new UserServiceImpl(userRepository, roleRepository, userConvert, refreshTokenService, passwordEncoder,
-                new AuthenticatedUserProvider(new AuthEventLog()), new UserEventLog());
+                new AuthenticatedUserProvider(new AuthEventLog()), new UserEventLog(), List.of(accountDeletionHandler));
     }
 
     @AfterEach
@@ -267,6 +270,18 @@ class UserServiceImplTest {
     }
 
     @Test
+    void softDeleteMyAccountNotifiesDeletionHandlers() {
+        UUID userId = UUID.randomUUID();
+        User user = userWithRoles(userId, "alice", "password123", role(RoleValues.BASIC.name()));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        setAuthenticatedUser(userId);
+
+        service.softDeleteMyAccount();
+
+        verify(accountDeletionHandler).onAccountDeleted(userId);
+    }
+
+    @Test
     void softDeleteMyAccountThrowsWhenNotAuthenticated() {
         SecurityContextHolder.clearContext();
 
@@ -285,5 +300,6 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> service.softDeleteMyAccount())
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(refreshTokenService, never()).revokeAllByUserId(any());
+        verify(accountDeletionHandler, never()).onAccountDeleted(any());
     }
 }
