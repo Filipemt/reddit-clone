@@ -97,6 +97,7 @@ Emitidos quando uma requisição resulta em erro tratado. Todos carregam `event`
 | `http.resource_invalid` | WARN | 422 | Dado inválido (ex.: credenciais incorretas chegadas ao handler) |
 | `http.conflict` | WARN | 409 | Conflito (ex.: username/email já existem) |
 | `http.unauthorized` | WARN | 401 | Sem autenticação ou credenciais inválidas |
+| `http.forbidden` | WARN | 403 | Regra de autorização do domínio negou a operação (`ForbiddenException`; ex.: alterar comunidade de outro usuário, entrar em comunidade `PRIVATE`) |
 | `http.validation_failed` | WARN | 400 | Payload não passa nas validações de bean (`@Valid`) |
 | `http.malformed_body` | WARN | 400 | Corpo da requisição mal formado |
 | `http.method_not_allowed` | WARN | 405 | Método HTTP não suportado na rota |
