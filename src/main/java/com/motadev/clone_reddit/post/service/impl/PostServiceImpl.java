@@ -20,10 +20,10 @@ import com.motadev.clone_reddit.shared.exception.ForbiddenException;
 import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
+import com.motadev.clone_reddit.shared.web.Pageables;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -37,9 +37,6 @@ import java.util.UUID;
 
 @Service
 public class PostServiceImpl implements PostServiceI {
-
-    private static final Sort SORT_NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
-    private static final int FALLBACK_PAGE_SIZE = 20;
 
     private final PostRepository postRepository;
     private final PostConverter postConverter;
@@ -247,13 +244,10 @@ public class PostServiceImpl implements PostServiceI {
 
     private static Pageable withSort(Pageable pageable, PostSort sort) {
         Sort order = switch (sort) {
-            case NEW -> SORT_NEWEST_FIRST;
-            case HOT -> Sort.by(Sort.Direction.DESC, "hotScore").and(SORT_NEWEST_FIRST);
-            case TOP -> Sort.by(Sort.Direction.DESC, "score").and(SORT_NEWEST_FIRST);
+            case NEW -> Pageables.NEWEST_BY_CREATED_AT;
+            case HOT -> Sort.by(Sort.Direction.DESC, "hotScore").and(Pageables.NEWEST_BY_CREATED_AT);
+            case TOP -> Sort.by(Sort.Direction.DESC, "score").and(Pageables.NEWEST_BY_CREATED_AT);
         };
-        if (!pageable.isPaged()) {
-            return PageRequest.of(0, FALLBACK_PAGE_SIZE, order);
-        }
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), order);
+        return Pageables.withSort(pageable, order);
     }
 }
