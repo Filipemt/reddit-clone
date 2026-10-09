@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="create-tb-post" author="motadev">
+        <createTable tableName="tb_post">
+            <column name="post_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="community_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="author_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="VARCHAR(300)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="body" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="media_id" type="UUID">
+                <constraints nullable="true"/>
+            </column>
+            <column name="score" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="up_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="down_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="comment_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hot_score" type="DOUBLE" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+            <column name="deleted_by" type="UUID">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="tb_post"
+                                 baseColumnNames="community_id"
+                                 constraintName="fk_post_community"
+                                 referencedTableName="tb_community"
+                                 referencedColumnNames="community_id"/>
+
+        <addForeignKeyConstraint baseTableName="tb_post"
+                                 baseColumnNames="media_id"
+                                 constraintName="fk_post_media"
+                                 referencedTableName="tb_media"
+                                 referencedColumnNames="media_id"/>
+
+        <sql dbms="postgresql">
+            CREATE INDEX idx_post_community_active_created
+                ON tb_post (community_id, created_at DESC)
+                WHERE deleted_at IS NULL;
+
+            CREATE INDEX idx_post_community_active_score
+                ON tb_post (community_id, score DESC, created_at DESC)
+                WHERE deleted_at IS NULL;
+
+            CREATE INDEX idx_post_community_active_hot
+                ON tb_post (community_id, hot_score DESC, created_at DESC)
+                WHERE deleted_at IS NULL;
+
+            CREATE INDEX idx_post_deleted_at
+                ON tb_post (deleted_at)
+                WHERE deleted_at IS NOT NULL;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

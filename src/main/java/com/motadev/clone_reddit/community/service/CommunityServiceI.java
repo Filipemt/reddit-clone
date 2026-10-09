@@ -28,4 +28,6 @@ public interface CommunityServiceI {
     void removeBanner(UUID communityId);
 
     void delete(UUID communityId);
+
+    UUID requireActiveOwnerId(UUID communityId);
 }

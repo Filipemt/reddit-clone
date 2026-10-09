@@ -242,6 +242,14 @@ public class CommunityServiceImpl implements CommunityServiceI {
         return communityConverter.toResponseDto(community, urlsFor(mediaIdsOf(community)), isMemberOf(community));
     }
 
+    @Override
+    @Transactional
+    public UUID requireActiveOwnerId(UUID communityId) {
+        return communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId)
+                .orElseThrow(() -> new ResourceNotFoundException("Community not found."))
+                .getOwnerId();
+    }
+
     private boolean isMemberOf(Community community) {
         UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
 
