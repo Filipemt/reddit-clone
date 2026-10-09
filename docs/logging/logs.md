@@ -148,8 +148,7 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
-| `messaging.topology.ready` | INFO | `exchange`, `notificationQueue`, `notificationDlq` | `RabbitAdmin.initialize()` concluiu e as filas existem no broker |
-| `messaging.topology.failed` | ERROR | `exchange`, `notificationQueue`, `notificationDlq`, `reason` | Falha ao declarar/verificar topologia (broker inacessível, fila ausente, etc.) |
+| `messaging.topology.ready` | INFO | `exchange`, `notificationQueue`, `notificationDlq` | Aplicação pronta; beans de topologia RabbitMQ registrados (exchange, fila de notificação e DLQ) |
 
 ## 5. Regras de dados sensíveis (resumo)
 

@@ -18,7 +18,7 @@ O Spring conecta via `spring.rabbitmq.*` (`RABBITMQ_HOST`, `RABBITMQ_PORT`, `RAB
 
 ## Topologia (código)
 
-Declarada por `RabbitMqTopologyConfig`. No `ApplicationReadyEvent`, `RabbitMqTopologyReadyListener` chama `RabbitAdmin.initialize()`, verifica as filas no broker e só então emite `messaging.topology.ready`. Sem essa chamada explícita, o admin só declara na primeira conexão AMQP (lazy); com a app idle (sem publisher/listener ativo), a Management UI fica só com os exchanges padrão e sem filas.
+Declarada por `RabbitMqTopologyConfig` na subida da aplicação (`RabbitAdmin`):
 
 | Recurso | Nome | Observações |
 |---|---|---|
@@ -28,8 +28,6 @@ Declarada por `RabbitMqTopologyConfig`. No `ApplicationReadyEvent`, `RabbitMqTop
 | DLQ | `notification.events.dlq` | Ligada com a routing key `notification.dlq` |
 
 Os nomes são configuráveis em `app.rabbitmq.*` no `application.yaml`.
-
-Na Management UI (vhost `/`), após a app subir com sucesso você deve ver `clone-reddit.events`, `notification.events` e `notification.events.dlq`. O evento `messaging.topology.ready` significa declaração verificada no broker — não só registro de beans Spring.
 
 Os payloads JSON usam `JacksonJsonMessageConverter`.
 
