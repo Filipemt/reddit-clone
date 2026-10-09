@@ -12,8 +12,12 @@ import com.motadev.clone_reddit.post.entity.Post;
 import com.motadev.clone_reddit.post.logging.PostEventLog;
 import com.motadev.clone_reddit.post.repository.PostRepository;
 import com.motadev.clone_reddit.post.service.PostServiceI;
+import com.motadev.clone_reddit.post.sort.HotScoreCalculator;
+import com.motadev.clone_reddit.post.sort.PostSort;
+import com.motadev.clone_reddit.post.sort.TopPeriod;
 import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
 import com.motadev.clone_reddit.shared.exception.ForbiddenException;
+import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
@@ -79,6 +83,7 @@ public class PostServiceImpl implements PostServiceI {
 
         Post post = postConverter.toEntity(dto, communityId, authorId, null);
         Post saved = postRepository.saveAndFlush(post);
+        refreshHotScore(saved);
 
         MediaResponse media = uploadIfPresent(mediaFile, mediaFolderOf(saved.getPostId()));
         if (media != null) {
@@ -101,12 +106,28 @@ public class PostServiceImpl implements PostServiceI {
 
     @Override
     @Transactional
-    public PagedResponseDTO<PostResponseDTO> listByCommunity(UUID communityId, Pageable pageable) {
+    public PagedResponseDTO<PostResponseDTO> listByCommunity(
+            UUID communityId,
+            Pageable pageable,
+            String sort,
+            String period
+    ) {
         communityServiceI.requireActiveOwnerId(communityId);
 
-        Page<Post> page = postRepository.findByCommunityIdAndDeletedAtIsNull(
+        PostSort postSort;
+        TopPeriod topPeriod;
+        try {
+            postSort = PostSort.from(sort);
+            topPeriod = TopPeriod.from(period);
+        } catch (IllegalArgumentException ex) {
+            throw new ResourceInvalidException("Invalid sort or period.");
+        }
+
+        LocalDateTime cutoff = postSort == PostSort.TOP ? topPeriod.cutoff(LocalDateTime.now()) : null;
+        Page<Post> page = postRepository.findActiveByCommunityAndCreatedAtAfter(
                 communityId,
-                withSortNewestFirst(pageable)
+                cutoff,
+                withSort(pageable, postSort)
         );
 
         Map<UUID, String> urls = mediaServiceI.getUrls(
@@ -142,6 +163,8 @@ public class PostServiceImpl implements PostServiceI {
         if (updated == 0) {
             throw new ResourceNotFoundException("Post not found.");
         }
+        post.setScore(post.getScore() + scoreDelta);
+        refreshHotScore(post);
         return post.getAuthorId();
     }
 
@@ -215,10 +238,22 @@ public class PostServiceImpl implements PostServiceI {
         return mediaServiceI.getUrls(List.of(mediaId));
     }
 
-    private static Pageable withSortNewestFirst(Pageable pageable) {
+    private void refreshHotScore(Post post) {
+        LocalDateTime createdAt = post.getCreatedAt() == null ? LocalDateTime.now() : post.getCreatedAt();
+        double hotScore = HotScoreCalculator.compute(post.getScore(), createdAt);
+        post.setHotScore(hotScore);
+        postRepository.updateHotScore(post.getPostId(), hotScore);
+    }
+
+    private static Pageable withSort(Pageable pageable, PostSort sort) {
+        Sort order = switch (sort) {
+            case NEW -> SORT_NEWEST_FIRST;
+            case HOT -> Sort.by(Sort.Direction.DESC, "hotScore").and(SORT_NEWEST_FIRST);
+            case TOP -> Sort.by(Sort.Direction.DESC, "score").and(SORT_NEWEST_FIRST);
+        };
         if (!pageable.isPaged()) {
-            return PageRequest.of(0, FALLBACK_PAGE_SIZE, SORT_NEWEST_FIRST);
+            return PageRequest.of(0, FALLBACK_PAGE_SIZE, order);
         }
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), SORT_NEWEST_FIRST);
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), order);
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,9 +43,11 @@ public class PostController {
     @GetMapping("/communities/{communityId}/posts")
     public ResponseEntity<PagedResponseDTO<PostResponseDTO>> listByCommunity(
             @PathVariable UUID communityId,
-            @PageableDefault Pageable pageable
+            @PageableDefault Pageable pageable,
+            @RequestParam(defaultValue = "new") String sort,
+            @RequestParam(defaultValue = "all") String period
     ) {
-        return ResponseEntity.ok(postServiceI.listByCommunity(communityId, pageable));
+        return ResponseEntity.ok(postServiceI.listByCommunity(communityId, pageable, sort, period));
     }
 
     @GetMapping("/posts/{postId}")

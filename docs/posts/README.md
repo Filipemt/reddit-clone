@@ -18,3 +18,5 @@
 ## Soft delete
 
 `DELETE /posts/{postId}` — author or `SCOPE_ADMIN`. Idempotent if already deleted. Media is retained (same approach as communities until a purge job exists).
+
+See also [sorting.md](sorting.md).
