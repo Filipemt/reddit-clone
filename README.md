@@ -73,7 +73,7 @@ Principais características do produto original que servem de referência para e
 | Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | 🟡 Up/down/clear + karma; Hot ranking ainda não |
 | Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | 🟡 Entrar, sair e listar implementados; promoção de moderadores não iniciada |
 | Ban | Usuário banido de uma comunidade específica | ⬜ Não iniciada |
-| Notificação | Evento direcionado a um usuário (resposta, menção, upvote) | ⬜ Não iniciada |
+| Notificação | Evento direcionado a um usuário (resposta, menção, upvote) | 🟡 Inbox + consumer; menção ainda não |
 | Tag *(extensão de produto, fora do Reddit original)* | Mecanismo de descoberta transversal a comunidades — relação N:N com posts | ⬜ Não iniciada |
 
 > **Karma** não será uma entidade própria: será tratado como um contador persistido no usuário, atualizado de forma incremental a cada evento de voto (decisão registrada na seção de [Decisões de Arquitetura](#-decisões-de-arquitetura)).
@@ -86,12 +86,12 @@ Cada funcionalidade do produto foi escolhida (ou vai naturalmente exigir) uma ou
 
 | Funcionalidade | Habilidades treinadas | Situação |
 |---|---|---|
-| Sistema de votos | Concorrência, race conditions, operações atômicas, contadores distribuídos | ⬜ |
-| Notificações | Idempotência, mensageria, circuit breaker, retry/backoff | ⬜ |
+| Sistema de votos | Concorrência, race conditions, operações atômicas, contadores distribuídos | 🟡 (sem Redis) |
+| Notificações | Idempotência, mensageria, circuit breaker, retry/backoff | 🟡 (outbox+Rabbit; sem circuit breaker) |
 | Autenticação e autorização | Segurança, RBAC/autorização contextual (moderador só age na própria comunidade) | 🟡 Autenticação pronta; autorização por dono ou papel global `ADMIN`; RBAC contextual (moderador) não iniciado |
 | Feed pessoal | Cache, fan-out on write/read, paginação por cursor | ⬜ |
-| Comentários aninhados | Modelagem de dados em árvore, consistência estrutural | ⬜ |
-| Busca | Indexação assíncrona, consistência eventual | ⬜ |
+| Comentários aninhados | Modelagem de dados em árvore, consistência estrutural | 🟡 |
+| Busca | Indexação assíncrona, consistência eventual | 🟡 ILIKE baseline |
 | Rate limit (votos, posts, comentários) | Proteção contra abuso, algoritmos de rate limiting | ⬜ |
 | Comunicação entre serviços | Microsserviços, timeout, retry, service discovery | ⬜ |
 | Processamento de mídia (upload) | Filas, processamento assíncrono, workers | 🟡 Upload síncrono direto no S3 feito; fila e worker não |
@@ -267,9 +267,9 @@ DOCKER_HOST=unix://$HOME/.colima/default/docker.sock ./mvnw test
 
 ## 🚧 Status atual
 
-**Fase: autenticação completa + comunidades e inscrições + camada de mídia em S3 + infra RabbitMQ.**
+**Fase: autenticação + comunidades + mídia + RabbitMQ/outbox + posts/comentários/votos + notificações + busca ILIKE.**
 
-Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de negócio (`auth`, `user`, `community`, `media`, `messaging`, `shared`). Schema gerenciado por **Liquibase** (16 changelogs), **PostgreSQL** e **RabbitMQ** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
+Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`auth`, `user`, `community`, `media`, `messaging`, `post`, `comment`, `vote`, `notification`, `search`, `shared`). Schema gerenciado por **Liquibase** (16 changelogs), **PostgreSQL** e **RabbitMQ** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
 ### O que já funciona
 
