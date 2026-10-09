@@ -88,7 +88,7 @@ Cada funcionalidade do produto foi escolhida (ou vai naturalmente exigir) uma ou
 |---|---|---|
 | Sistema de votos | Concorrência, race conditions, operações atômicas, contadores distribuídos | ⬜ |
 | Notificações | Idempotência, mensageria, circuit breaker, retry/backoff | ⬜ |
-| Autenticação e autorização | Segurança, RBAC/autorização contextual (moderador só age na própria comunidade) | 🟡 Autenticação pronta; RBAC não iniciado |
+| Autenticação e autorização | Segurança, RBAC/autorização contextual (moderador só age na própria comunidade) | 🟡 Autenticação pronta; autorização por dono ou papel global `ADMIN`; RBAC contextual (moderador) não iniciado |
 | Feed pessoal | Cache, fan-out on write/read, paginação por cursor | ⬜ |
 | Comentários aninhados | Modelagem de dados em árvore, consistência estrutural | ⬜ |
 | Busca | Indexação assíncrona, consistência eventual | ⬜ |
@@ -195,8 +195,8 @@ README.md              → Este documento
 **1. Suba o banco de dados**
 
 ```bash
-docker compose up -d          # inicia o Postgres (docker/docker-compose.yml)
-docker compose down -v        # para resetar o banco e os dados (recria o schema via Liquibase)
+docker compose -f docker/docker-compose.yml up -d     # inicia o Postgres
+docker compose -f docker/docker-compose.yml down -v   # para resetar o banco e os dados (recria o schema via Liquibase)
 ```
 
 **2. Configure as variáveis de ambiente**
@@ -239,7 +239,7 @@ POST /authentication/login
 { "username": "admin", "password": "123" }
 ```
 
-As credenciais acima são apenas para desenvolvimento local (`application.yaml`).
+As credenciais acima são apenas para desenvolvimento local e estão fixas em `AdminUserConfig` (o usuário só é criado se ainda não existir).
 
 **5. Testes**
 
@@ -247,7 +247,11 @@ As credenciais acima são apenas para desenvolvimento local (`application.yaml`)
 ./mvnw test
 ```
 
-Os testes de integração sobem o PostgreSQL via Testcontainers. No macOS com Colima, o `pom.xml` já desabilita o resource-reaper (ryuk) — veja o comentário no `maven-surefire-plugin`.
+Os testes de integração sobem o PostgreSQL via Testcontainers e usam credenciais AWS falsas do perfil `test` (nenhum teste chama o S3). No macOS com Colima, o `pom.xml` já desabilita o resource-reaper (ryuk) — veja o comentário no `maven-surefire-plugin` —, mas o Testcontainers ainda precisa achar o socket do Docker:
+
+```bash
+DOCKER_HOST=unix://$HOME/.colima/default/docker.sock ./mvnw test
+```
 
 ---
 
@@ -264,7 +268,7 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 - **Refresh token** persistido (24 h): rotação, revogação e consumo de **uso único** (single-use).
 - Anti-enumeração de usuários: usuário inexistente e senha errada retornam a mesma mensagem.
 - Papéis seedados (`BASIC`, `ADMIN`), usuário admin inicial e claim `scope` já incluído no token.
-- Exclusão de conta (`soft delete`) revoga **todos** os refresh tokens do usuário.
+- Exclusão de conta (`soft delete`) revoga **todos** os refresh tokens do usuário e, na mesma transação, desativa as inscrições dele em comunidades e remove (soft delete) as comunidades das quais é dono.
 - **Logs estruturados ECS** com campo `event` nomeado por operação e nenhum dado sensível (ver [docs/logging/logs.md](docs/logging/logs.md)).
 
 **Comunidades** (`community`)
