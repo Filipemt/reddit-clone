@@ -19,8 +19,29 @@ services:
     networks:
       - reddit_network
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: reddit-clone-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-reddit}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-reddit}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - reddit_network
+
 volumes:
   postgres_data:
+  rabbitmq_data:
 
 networks:
   reddit_network:

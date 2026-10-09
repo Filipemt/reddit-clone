@@ -144,6 +144,12 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `community.membership.deactivated` | INFO | `userId`, `membershipCount` | Exclusão de conta: inscrições ativas desativadas e contadores decrementados |
 | `community.delete.owner_account_deleted` | INFO | `userId`, `communityCount` | Exclusão de conta: comunidades das quais o usuário era dono foram removidas (soft delete) |
 
+### 4.10 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`)
+
+| Evento | Nível | Campos | Quando ocorre |
+|---|---|---|---|
+| `messaging.topology.ready` | INFO | `exchange`, `notificationQueue`, `notificationDlq` | Aplicação pronta; beans de topologia RabbitMQ registrados (exchange, fila de notificação e DLQ) |
+
 ## 5. Regras de dados sensíveis (resumo)
 
 | Dado | Logado? |

@@ -12,6 +12,12 @@ aws:
     bucket-name: test-bucket
     presigned-url-expiration-seconds: 3600
 app:
+  rabbitmq:
+    exchange: clone-reddit.events
+    notification-queue: notification.events
+    notification-routing-key: "notification.#"
+    notification-dlq: notification.events.dlq
+    notification-dlq-routing-key: notification.dlq
   purge:
     communities:
       retention-days: 30

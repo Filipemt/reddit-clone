@@ -165,17 +165,19 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 /docs
   /communities         → Ciclo de vida das comunidades (soft delete, purge) e inscrição (membership)
   /logging             → Convenções de logs estruturados (ECS) e catálogo de eventos
+  /messaging           → RabbitMQ (topologia, compose, variáveis)
   /s3                  → Documentação da integração com object storage (upload, URL pré-assinada, IAM, CORS)
   /security            → Documentação de segurança (autenticação, JWT, chaves, etc.)
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
   /mer                 → Modelo Entidade-Relacionamento e modelagem de dados (ainda não criado)
   /adr                 → Architecture Decision Records (se adotado futuramente)
-/docker                → docker-compose de desenvolvimento (PostgreSQL)
+/docker                → docker-compose de desenvolvimento (PostgreSQL + RabbitMQ)
 /src/main/java/com/motadev/clone_reddit
   /auth                → Autenticação (login, refresh, logout) e ciclo de vida da sessão
   /user                → Cadastro, perfil, papéis e exclusão de conta
   /community           → Comunidades, inscrições, regras e referências (tipo/status/tópico/papel de membro)
   /media               → Upload para object storage e URLs pré-assinadas
+  /messaging           → Topologia RabbitMQ e (futuro) outbox/publisher
   /shared              → Configuração, tratamento global de exceções, segurança e extras transversais
 README.md              → Este documento
 ```
@@ -188,16 +190,18 @@ README.md              → Este documento
 
 **Pré-requisitos**
 - Java 25
-- Docker (para o PostgreSQL)
+- Docker (para o PostgreSQL e o RabbitMQ)
 - OpenSSL 3.x (para gerar as chaves JWT)
 - Credenciais de um bucket S3 (ou de um serviço compatível com a API S3)
 
-**1. Suba o banco de dados**
+**1. Suba a infraestrutura local**
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d     # inicia o Postgres
-docker compose -f docker/docker-compose.yml down -v   # para resetar o banco e os dados (recria o schema via Liquibase)
+docker compose -f docker/docker-compose.yml up -d     # Postgres + RabbitMQ
+docker compose -f docker/docker-compose.yml down -v   # para resetar volumes (recria o schema via Liquibase)
 ```
+
+RabbitMQ sobe com Management UI em http://localhost:15672 (user/password padrão `reddit`/`reddit`). Detalhes em [docs/messaging/rabbitmq.md](docs/messaging/rabbitmq.md).
 
 **2. Configure as variáveis de ambiente**
 
@@ -257,9 +261,9 @@ DOCKER_HOST=unix://$HOME/.colima/default/docker.sock ./mvnw test
 
 ## 🚧 Status atual
 
-**Fase: autenticação completa + comunidades e inscrições + camada de mídia em S3.**
+**Fase: autenticação completa + comunidades e inscrições + camada de mídia em S3 + infra RabbitMQ.**
 
-Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de negócio (`auth`, `user`, `community`, `media`, `shared`). Schema gerenciado por **Liquibase** (16 changelogs), **PostgreSQL** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
+Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de negócio (`auth`, `user`, `community`, `media`, `messaging`, `shared`). Schema gerenciado por **Liquibase** (16 changelogs), **PostgreSQL** e **RabbitMQ** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
 ### O que já funciona
 
@@ -287,6 +291,11 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 - **URL pré-assinada** gerada sob demanda e devolvida na resposta (em lote nas listagens) — o domínio nunca persiste a URL.
 - Exclusão de mídia em duas fases: a linha de `tb_media` sai na transação e o objeto do bucket só depois do commit (`deleteAfterCommit`).
 
+**Mensageria** (`messaging`)
+- RabbitMQ no compose; topologia (exchange `clone-reddit.events`, fila `notification.events` + DLQ) declarada em código via Spring AMQP.
+- Converter JSON (`JacksonJsonMessageConverter`) registrado para payloads futuros de eventos de domínio.
+- Publisher/outbox e consumer de notificação ainda não implementados.
+
 ### Endpoints
 
 | Método | Rota | Descrição |
@@ -310,7 +319,7 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 
 ### Testes
 
-Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação e os serviços de usuário, mídia e comunidade (Testcontainers + PostgreSQL real).
+Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação, os serviços de usuário, mídia e comunidade, e a declaração da topologia RabbitMQ (Testcontainers + PostgreSQL e RabbitMQ reais).
 
 ### Dívidas e pontos de atenção conhecidos
 
@@ -329,7 +338,7 @@ Edição e busca textual de comunidades, promoção de moderadores (RBAC context
 
 ### Stack
 
-Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
+Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring AMQP (RabbitMQ) · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
 
 ---
 
@@ -341,6 +350,7 @@ Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resou
   - [docs/security/jwt-keys.md](docs/security/jwt-keys.md) — geração, verificação e rotação das chaves
   - [docs/s3/s3-integration.md](docs/s3/s3-integration.md) — camada de mídia: upload, URL pré-assinada, IAM e CORS
   - [docs/logging/logs.md](docs/logging/logs.md) — convenções de logs estruturados e catálogo de eventos
+  - [docs/messaging/rabbitmq.md](docs/messaging/rabbitmq.md) — broker, topologia declarativa e variáveis de ambiente
   - [docs/system-design/mvp-system-design.png](docs/system-design/mvp-system-design.png) — modelo do sistema do MVP
 
 ---
