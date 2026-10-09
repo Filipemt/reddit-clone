@@ -293,8 +293,9 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 
 **Mensageria** (`messaging`)
 - RabbitMQ no compose; topologia (exchange `clone-reddit.events`, fila `notification.events` + DLQ) declarada em código via Spring AMQP.
-- Converter JSON (`JacksonJsonMessageConverter`) registrado para payloads futuros de eventos de domínio.
-- Publisher/outbox e consumer de notificação ainda não implementados.
+- Converter JSON (`JacksonJsonMessageConverter`) registrado para payloads de eventos de domínio.
+- **Transactional outbox**: `OutboxServiceI.enqueue` na mesma transação do domínio; `OutboxPublisherJob` publica pendências no RabbitMQ com advisory lock, retry e `FAILED`.
+- Consumer de notificação ainda não implementado.
 
 ### Endpoints
 

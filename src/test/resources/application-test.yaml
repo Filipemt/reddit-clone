@@ -18,6 +18,14 @@ app:
     notification-routing-key: "notification.#"
     notification-dlq: notification.events.dlq
     notification-dlq-routing-key: notification.dlq
+  outbox:
+    publisher:
+      enabled: false
+      batch-size: 50
+      advisory-lock-id: 987654321
+      max-attempts: 5
+      fixed-delay-ms: 60000
+      initial-delay-ms: 60000
   purge:
     communities:
       retention-days: 30
