@@ -144,11 +144,17 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `community.membership.deactivated` | INFO | `userId`, `membershipCount` | Exclusão de conta: inscrições ativas desativadas e contadores decrementados |
 | `community.delete.owner_account_deleted` | INFO | `userId`, `communityCount` | Exclusão de conta: comunidades das quais o usuário era dono foram removidas (soft delete) |
 
-### 4.10 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`)
+### 4.10 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
 | `messaging.topology.ready` | INFO | `exchange`, `notificationQueue`, `notificationDlq` | Aplicação pronta; beans de topologia RabbitMQ registrados (exchange, fila de notificação e DLQ) |
+| `messaging.outbox.enqueued` | DEBUG | `eventId`, `eventType`, `routingKey`, `aggregateId` | Evento de domínio gravado em `tb_outbox_event` como `PENDING` |
+| `messaging.outbox.published` | INFO | `eventId`, `eventType`, `routingKey` | Evento publicado no exchange RabbitMQ e marcado `SENT` |
+| `messaging.outbox.publish_failed_retry` | WARN | `eventId`, `eventType`, `attempts` | Falha ao publicar; permanece `PENDING` para nova tentativa |
+| `messaging.outbox.publish_failed` | ERROR | `eventId`, `eventType`, `attempts` | Esgotou `max-attempts`; marcado `FAILED` |
+| `messaging.outbox.lock_not_acquired` | DEBUG | `advisoryLockId` | Outra instância detém o advisory lock; o publisher pula a execução |
+| `messaging.outbox.batch` | INFO | `published`, `failed` | Resumo de um ciclo do publisher com pelo menos um evento processado |
 
 ## 5. Regras de dados sensíveis (resumo)
 

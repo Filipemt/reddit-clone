@@ -34,3 +34,14 @@ JSON payloads use `JacksonJsonMessageConverter`.
 ## Tests
 
 `TestcontainersConfiguration` starts `RabbitMQContainer` with `@ServiceConnection`, so `@SpringBootTest` suites get a real broker without relying on the compose instance.
+
+## Transactional outbox
+
+Domain modules must not publish to RabbitMQ inside the request thread. They call `OutboxServiceI.enqueue(...)` in the same DB transaction as the business write. A scheduled `OutboxPublisherJob`:
+
+1. Acquires a Postgres advisory lock (`app.outbox.publisher.advisory-lock-id`)
+2. Loads `PENDING` rows in batches
+3. Publishes an `OutboxMessageEnvelope` to `clone-reddit.events` with the event routing key
+4. Marks the row `SENT`, or retries until `FAILED` after `max-attempts`
+
+Publisher schedule: `app.outbox.publisher.fixed-delay-ms` / `initial-delay-ms`. Tests keep `enabled=false` by default and enable it only in outbox integration tests.
