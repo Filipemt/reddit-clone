@@ -8,7 +8,7 @@ A aplicação usa o **AWS SDK for Java v2** (`software.amazon.awssdk:s3`, versã
 
 | Cliente | Responsabilidade |
 |---|---|
-| `S3Client` | operações de objeto no bucket — hoje, apenas o `putObject` do upload |
+| `S3Client` | operações de objeto no bucket — `putObject` no upload e `deleteObject` na compensação e na exclusão após o commit |
 | `S3Presigner` | geração de **URLs pré-assinadas** (presigned URLs) para leitura do objeto |
 
 O binário do arquivo **nunca é persistido no banco**: ele vai para o bucket e o PostgreSQL guarda apenas a referência (`bucket`, `object_key`) e metadados (`content_type`, `size_bytes`, `created_at`) na tabela `tb_media`.
@@ -18,8 +18,8 @@ O fluxo de leitura não expõe o bucket publicamente: cada leitura gera uma URL 
 ```
 Upload (via backend)                    Leitura
 ─────────────────────                   ───────
-POST /communities                       Cliente chama a API
-  (multipart: icon, banner)               │
+POST /communities,                      Cliente chama a API
+PUT /communities/{id}/icon|banner         │
         │                                ▼
         ▼                          S3Presigner.presignGetObject()
   S3Client.putObject()                         │
@@ -27,7 +27,7 @@ POST /communities                       Cliente chama a API
         ▼                                URL assinada (expira em N s)
   tb_media (bucket, object_key, metadata)      │
         │                                      ▼
-        └──────────────► getUrl(mediaId) ──► resposta da API
+        └──────────────► getUrl(mediaId) / getUrls(ids) ──► resposta da API
 ```
 
 ## 2. Arquitetura
@@ -35,7 +35,8 @@ POST /communities                       Cliente chama a API
 A camada vive em `src/main/java/com/motadev/clone_reddit/media/` e a configuração dos clientes em `shared/config/`.
 
 ```
-CommunityController  (POST /communities, multipart)
+CommunityController  (POST /communities, PUT/DELETE /communities/{id}/icon|banner)
+CommunityPurgeJob    (purge físico das comunidades removidas)
         │
         ▼
 CommunityServiceImpl  ──► MediaServiceI ──► S3ServiceImpl
@@ -51,8 +52,8 @@ Responsabilidades de cada componente:
 | Componente | Responsabilidade |
 |---|---|
 | `shared/config/StorageConfig.java` | Cria os beans `S3Client` e `S3Presigner` com região e credenciais estáticas vindas da configuração |
-| `media/service/MediaServiceI.java` | Contrato da camada: `upload(MultipartFile, String folder)` e `getUrl(UUID mediaId)` |
-| `media/service/impl/S3ServiceImpl.java` | Valida o arquivo, monta a `objectKey`, executa o `putObject`, persiste os metadados, assina a URL de leitura e registra a compensação do objeto quando a transação não confirma |
+| `media/service/MediaServiceI.java` | Contrato da camada: `upload(MultipartFile, String folder)`, `getUrl(UUID mediaId)`, `getUrls(Collection<UUID>)` (em lote) e `deleteAfterCommit(Collection<UUID>)` |
+| `media/service/impl/S3ServiceImpl.java` | Valida o arquivo, monta a `objectKey`, executa o `putObject`, persiste os metadados, assina as URLs de leitura, registra a compensação do objeto quando a transação não confirma e apaga mídias (linha no ato, objeto após o commit) |
 | `media/validator/MediaFileValidator.java` | Rejeita tamanho e combinações `content-type`/extensão fora das regras antes de ler os bytes; devolve a extensão normalizada |
 | `media/config/MediaUploadProperties.java` | Record de configuração (`maxSizeBytes` + regras de tipo), vinculado por `@ConfigurationProperties` e validado no boot |
 | `media/config/MediaTypeRule.java` | Record de uma regra: um `content-type` e as extensões aceitas para ele |
@@ -64,7 +65,7 @@ Responsabilidades de cada componente:
 
 `S3ServiceImpl` é a única implementação de `MediaServiceI` — a separação entre contrato e implementação é o que permite trocar o backend de storage (S3, MinIO, outro) sem alterar os consumidores, como o módulo `community`.
 
-Repare que a compensação do S3 ([seção 5.1](#51-compensacao-do-s3-quando-a-transacao-nao-confirma)) mora na implementação e **não** aparece no contrato `MediaServiceI`: ela é um efeito colateral do upload, não uma operação que o consumidor possa pedir. Isso mantém os consumidores livres de qualquer preocupação com o storage — o módulo `community` continua apenas esperando um `MediaResponse` e um rollback de banco.
+Repare que a compensação do S3 ([seção 5.1](#51-compensacao-do-s3-quando-a-transacao-nao-confirma)) mora na implementação e **não** aparece no contrato `MediaServiceI`: ela é um efeito colateral do upload, não uma operação que o consumidor possa pedir. Isso mantém os consumidores livres de qualquer preocupação com o storage — o módulo `community` continua apenas esperando um `MediaResponse` e um rollback de banco. A exclusão, ao contrário, é uma operação explícita do contrato (`deleteAfterCommit`, [seção 5.2](#52-exclusao-de-midia-deleteaftercommit)).
 
 ## 3. Configuração dos clientes — `StorageConfig`
 
@@ -90,14 +91,14 @@ public S3Presigner s3Presigner() {
 
 Pontos da implementação:
 
-- **Credenciais estáticas** — `StaticCredentialsProvider` com `AwsBasicCredentials`, montado a partir de `aws.access-key` e `aws.secret-access-key` (`StorageConfig.java:30-34`). As mesmas credenciais assinam o upload e a URL pré-assinada.
+- **Credenciais estáticas** — `StaticCredentialsProvider` com `AwsBasicCredentials`, montado a partir de `aws.access-key` e `aws.secret-access-key` (`StorageConfig`). As mesmas credenciais assinam o upload e a URL pré-assinada.
 - **Um provider para os dois clientes** — a assinatura da presigned URL usa a mesma identidade que faz o `putObject`, ou seja, quem consegue ler via URL é a identidade da aplicação, com as permissões que ela tiver no bucket.
 - **Sem `endpointOverride`** — o builder é configurado apenas com `region` e credenciais; o SDK resolve o endpoint da região da AWS. Não há uso de *path-style access*.
 - **Propriedades lidas por `@Value`** — `aws.region`, `aws.access-key` e `aws.secret-access-key` não têm valor default: se a env var correspondente faltar, a aplicação não sobe.
 
 ## 4. Propriedades e variáveis de ambiente
 
-Bloco `aws` em `src/main/resources/application.yaml:42-48`:
+Bloco `aws` em `src/main/resources/application.yaml`:
 
 ```yaml
 aws:
@@ -127,7 +128,7 @@ AWS_S3_BUCKET_NAME=
 AWS_S3_PRESIGNED_URL_SECONDS=
 ```
 
-Sobre a validade da URL pré-assinada: `S3ServiceImpl` declara `@Value("${aws.s3.presigned-url-expiration-seconds:3600}")` (`S3ServiceImpl.java:40-41`), com fallback de 3600 s (1 h). Como o `application.yaml` sempre define a propriedade a partir da env var, na prática o valor vem do ambiente.
+Sobre a validade da URL pré-assinada: `S3ServiceImpl` declara `@Value("${aws.s3.presigned-url-expiration-seconds:3600}")`, com fallback de 3600 s (1 h). Como o `application.yaml` sempre define a propriedade a partir da env var, na prática o valor vem do ambiente.
 
 O bucket é único por ambiente e entra na construção da `objectKey`; o valor em vigor é o mesmo para todas as mídias, porque é lido da configuração e não do request.
 
@@ -172,9 +173,9 @@ Uma observação sobre o `.env`: `MEDIA_MAX_SIZE_BYTES` tem fallback (`5242880`)
 
 ## 5. Fluxo de upload
 
-`S3ServiceImpl.upload(MultipartFile file, String folder)` (`S3ServiceImpl.java:56-82`):
+`S3ServiceImpl.upload(MultipartFile file, String folder)`:
 
-**0. Validação do arquivo** — antes de qualquer leitura de bytes, `mediaFileValidator.validateAndResolveExtension(file)` (`MediaFileValidator.java:19-38`) rejeita três coisas, cada uma com `ResourceInvalidException` (tratada pelo `GlobalExceptionHandler` como **422**):
+**0. Validação do arquivo** — antes de qualquer leitura de bytes, `mediaFileValidator.validateAndResolveExtension(file)` (`MediaFileValidator`) rejeita três coisas, cada uma com `ResourceInvalidException` (tratada pelo `GlobalExceptionHandler` como **422**):
 
 | Checagem | Origem da informação |
 |---|---|
@@ -193,7 +194,7 @@ Duas consequências que valem registrar:
 - **A allowlist de extensões é também a sanitização da `objectKey`.** O Spring não sanitiza o filename (`StandardMultipartFile.getOriginalFilename()` devolve o valor cru do `Content-Disposition`), e a chave é `pasta + "/" + uuid + extensão`. Como `/` nunca casa com uma extensão permitida, um filename como `icon.png/../../../evil` é rejeitado em vez de produzir uma chave que escapa do prefixo.
 - **A validação não inspeciona os *magic bytes*.** O `content_type` continua sendo o declarado pelo cliente; cruzar tipo e extensão reduz o espaço de abuso, mas um JPEG renomeado de `.png` passa. Fechar isso exigiria leitura dos primeiros bytes do arquivo, o que está registrado como dívida em `README.md`.
 
-**1. Leitura do arquivo para memória** — `MediaConverter.toUploadRequest` chama `file.getBytes()` e monta o record `MediaUploadRequest(content, contentType, folder)`. Uma `IOException` na leitura é reembalada como `UncheckedIOException("Failed to read uploaded file")` (`MediaConverter.java:15-21`).
+**1. Leitura do arquivo para memória** — `MediaConverter.toUploadRequest` chama `file.getBytes()` e monta o record `MediaUploadRequest(content, contentType, folder)`. Uma `IOException` na leitura é reembalada como `UncheckedIOException("Failed to read uploaded file")` (`MediaConverter.toUploadRequest`).
 
 **2. Montagem da `objectKey`** — a extensão já foi validada e normalizada no passo 0, e a chave é composta como:
 
@@ -228,7 +229,7 @@ Entre os passos 3 e 5 há o registro da compensação (passo 4b), detalhado na [
 
 O `putObject` acontece sobre a rede e não participa da transação do banco. Se a transação for revertida, o `tb_media` some junto com ela — e a `objectKey`, que só existe naquela linha, também. Sobraria um objeto no bucket que **ninguém conseguiria localizar pelo banco**. A camada fecha essa janela em dois pontos distintos.
 
-**4b-a. Falha entre o `putObject` e o `save`** — coberta por um `try/catch` em volta do `save` (`S3ServiceImpl.java:72-77`):
+**4b-a. Falha entre o `putObject` e o `save`** — coberta por um `try/catch` em volta do `save`:
 
 ```java
 Media media = mediaConverter.toEntity(request, bucketName, objectKey);
@@ -242,7 +243,7 @@ try {
 
 O `catch` é obrigatório aqui porque o `mediaId` nunca chega ao chamador: se `upload` lança, quem chamou não sabe que um objeto foi gravado. A única fonte da `objectKey` é o próprio `S3ServiceImpl`.
 
-**4b-b. Falha depois do `save`, dentro da transação do chamador** — coberta por `registerRollbackOnRollback` (`S3ServiceImpl.java:84-114`). Quando existe uma transação ativa (o caso de `CommunityServiceImpl.create`, anotada com `@Transactional`), o upload registra uma `TransactionSynchronization` que, no `afterCompletion`, apaga o objeto:
+**4b-b. Falha depois do `save`, dentro da transação do chamador** — coberta por `registerRollbackOnRollback`. Quando existe uma transação ativa (o caso de `CommunityServiceImpl.create`, `replaceIcon` e `replaceBanner`, anotados com `@Transactional`), o upload registra uma `TransactionSynchronization` que, no `afterCompletion`, apaga o objeto:
 
 ```java
 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -265,25 +266,40 @@ Três decisões desse código merecem justificativa:
 - **Ler `bucket` e `objectKey` da entidade, e não buscar por `mediaId`.** Depois de um rollback o registro em `tb_media` não existe mais, e uma chamada a `mediaRepository.findById` lançaria `ResourceNotFoundException` justamente no caminho que precisa consertar o S3. Por isso os valores são capturados do `Media` ainda em memória, na closure. Isso também explica por que a `objectKey` nunca aparece na `MediaResponse`: ela é interna por necessidade de desenho, não por esquecimento.
 - **`STATUS_UNKNOWN` mantém o objeto.** Nos dois desfechos incertos o custo é assimétrico: apagar e o commit ter sido OK produz `tb_community` referenciando um objeto apagado (ícone quebrado, sem caminho de recuperação); manter e o rollback ter ocorrido produz apenas um órfão. Opta-se por manter e sinalizar em `media.upload.rollback_unknown`.
 
-`deleteObjectQuietly` (`S3ServiceImpl.java:116-132`) **nunca relança**: como roda de dentro de `afterCompletion`, uma exceção ali escaparia pelo proxy transacional e mascararia a falha original — um `DataIntegrityViolationException` (409) viraria 500. Falha de delete fica registrada em `media.upload.rollback_failed` com o stack trace.
+`deleteObjectQuietly` **nunca relança**: como roda de dentro de `afterCompletion`, uma exceção ali escaparia pelo proxy transacional e mascararia a falha original — um `DataIntegrityViolationException` (409) viraria 500. Falha de delete fica registrada em `media.upload.rollback_failed` com o stack trace.
 
-**O guarda `isSynchronizationActive()`** (`S3ServiceImpl.java:85-93`) cobre o caso de um upload feito **fora** de transação: sem ele, `registerSynchronization` lançaria `IllegalStateException`. Semanticamente, fora de transação o `save` do repositório já rodou e commitou na transação curta que o Spring Data abre, então não há o que reverter e a limpeza volta a ser responsabilidade de quem chamou — o que o log `DEBUG` `media.upload.no_active_transaction` registra.
+**O guarda `isSynchronizationActive()`** cobre o caso de um upload feito **fora** de transação: sem ele, `registerSynchronization` lançaria `IllegalStateException`. Semanticamente, fora de transação o `save` do repositório já rodou e commitou na transação curta que o Spring Data abre, então não há o que reverter e a limpeza volta a ser responsabilidade de quem chamou — o que o log `DEBUG` `media.upload.no_active_transaction` registra.
 
 A consequência arquitetural que vale registrar: essa compensação está na camada de mídia, e não no serviço que consome o upload. Ela é a única camada que sabe a `objectKey`, e por estar presa ao ciclo de vida da transação, **todo chamador futuro** (avatar, post com imagem) fica protegido sem precisar repetir a lista de arquivos a reverter.
 
+### 5.2 Exclusão de mídia (`deleteAfterCommit`)
+
+`S3ServiceImpl.deleteAfterCommit(Collection<UUID> mediaIds)` remove mídias que deixaram de ser referenciadas:
+
+1. Ignora coleção vazia e ids sem registro (`findAllById`).
+2. Apaga as linhas de `tb_media` **na transação do chamador** — se ela for revertida, as linhas voltam.
+3. Registra uma `TransactionSynchronization` com `afterCommit` que chama `deleteObjectQuietly` para cada objeto. O objeto só sai do bucket depois que o banco confirmou que ninguém mais o referencia; o inverso (apagar antes) deixaria uma referência confirmada apontando para um objeto inexistente se o commit falhasse.
+4. Sem sincronização ativa, apaga os objetos imediatamente e registra `media.delete.no_active_transaction`.
+
+Falha no `deleteObject` não relança e fica em `media.upload.rollback_failed`; o objeto vira órfão.
+
+Consumidores: `CommunityServiceImpl` (troca e remoção de ícone/banner apagam a mídia anterior) e `CommunityPurgeJob` (purge físico de comunidades removidas). O soft delete de comunidade **não** apaga mídia — ela é retida até o purge.
+
 ## 6. Fluxo de leitura (URL pré-assinada)
 
-`S3ServiceImpl.getUrl(UUID mediaId)` (`S3ServiceImpl.java:135-150`):
+`S3ServiceImpl.getUrl(UUID mediaId)`:
 
-1. Busca a mídia por `mediaId` em `tb_media`; se não existir, lança `ResourceNotFoundException("Media not found")`, tratado pelo `GlobalExceptionHandler` como **404** (`shared/exception/GlobalExceptionHandler.java:21-26`).
+1. Busca a mídia por `mediaId` em `tb_media`; se não existir, lança `ResourceNotFoundException("Media not found")`, tratado pelo `GlobalExceptionHandler` como **404**.
 2. Monta um `GetObjectPresignRequest` com `signatureDuration = Duration.ofSeconds(presignedUrlExpirationSeconds)` e o `GetObjectRequest` montado com o **bucket e a key vindos do registro do banco** (não da configuração) — assim a assinatura acompanha o bucket em que o objeto foi realmente gravado.
 3. `s3Presigner.presignGetObject(presignRequest).url()` devolve a URL assinada, que já contém a query SigV4 (`X-Amz-Signature`, `X-Amz-Expires`, `X-Amz-Credential`) e só é válida até `X-Amz-Expires`.
 
 O bucket é lido de `media.getBucket()` porque o `mediaId` persistido carrega o bucket junto — a coluna existe justamente para o registro ser autossuficiente na geração da URL.
 
+`S3ServiceImpl.getUrls(Collection<UUID> mediaIds)` faz o mesmo em lote, com uma única consulta (`findAllById`), e devolve `Map<mediaId, url>`. Ids sem registro ficam fora do mapa, em vez de lançar 404. É o caminho usado pelas leituras de comunidade (listagem, detalhe e `/communities/me`), evitando uma consulta por mídia.
+
 ## 7. Modelo de dados
 
-Tabela `tb_media`, criada pelo changelog Liquibase `db/changelog/changes/20260921_create_tb_media.xml` (incluído em `master.yaml:14-15`):
+Tabela `tb_media`, criada pelo changelog Liquibase `db/changelog/changes/20260921_create_tb_media.xml` (incluído em `master.yaml`):
 
 | Coluna | Tipo | Restrições | Origem no código |
 |---|---|---|---|
@@ -294,9 +310,9 @@ Tabela `tb_media`, criada pelo changelog Liquibase `db/changelog/changes/2026092
 | `size_bytes` | BIGINT | `NOT NULL` | `byte[].length` |
 | `created_at` | TIMESTAMP | `NOT NULL` | `@CreationTimestamp` |
 
-A entidade usa `@Table(name = "tb_media")` e o Hibernate roda com `ddl-auto: validate` (`application.yaml:11-13`): o schema é de responsabilidade do Liquibase, e a aplicação apenas valida que a entidade bate com a migration.
+A entidade usa `@Table(name = "tb_media")` e o Hibernate roda com `ddl-auto: validate` (`application.yaml`): o schema é de responsabilidade do Liquibase, e a aplicação apenas valida que a entidade bate com a migration.
 
-O `media_id` é gerado pela aplicação (`@GeneratedValue(strategy = GenerationType.UUID)`); o `default gen_random_uuid()` em `tb_media` foi adicionado depois pelo changelog `20260921_add_uuid_defaults.xml:12` e cobre a geração no lado do banco.
+O `media_id` é gerado pela aplicação (`@GeneratedValue(strategy = GenerationType.UUID)`); o `default gen_random_uuid()` em `tb_media` foi adicionado depois pelo changelog `20260921_add_uuid_defaults.xml` e cobre a geração no lado do banco.
 
 **Referências a partir da comunidade** — `tb_community` guarda apenas o UUID da mídia, nunca a URL nem o binário:
 
@@ -309,35 +325,40 @@ Isso mantém o desacoplamento entre `community` e `media`: a comunidade conhece 
 
 ## 8. Uso pela comunidade
 
-Hoje o único consumidor da camada é a criação de comunidade. `CommunityController` (`community/controller/CommunityController.java:22-30`) recebe `multipart/form-data` com a parte `data` (JSON da comunidade) e as partes opcionais `icon` e `banner`.
+O módulo `community` é hoje o único consumidor da camada, em quatro pontos:
 
-`CommunityServiceImpl` (`community/service/impl/CommunityServiceImpl.java:33-34, 63-72`) define as pastas por uso e por período:
+| Operação | Rota | Uso da camada |
+|---|---|---|
+| Criação | `POST /communities` (multipart: `data`, `icon` e `banner` opcionais) | `upload` de cada arquivo presente |
+| Troca de ícone/banner | `PUT /communities/{id}/icon` · `/banner` (multipart: `file`) | `upload` do novo arquivo + `deleteAfterCommit` do anterior |
+| Remoção de ícone/banner | `DELETE /communities/{id}/icon` · `/banner` | `deleteAfterCommit` da mídia atual |
+| Leituras | `GET /communities`, `/communities/{id}`, `/communities/slug/{slug}`, `/communities/me` | `getUrls` em lote |
+
+O purge físico (`CommunityPurgeJob`) também chama `deleteAfterCommit` para as mídias das comunidades purgadas. O soft delete não apaga mídia.
+
+`CommunityServiceImpl` define as pastas **por comunidade**:
 
 ```java
-private static final DateTimeFormatter FOLDER_PERIOD_FORMATTER =
-        DateTimeFormatter.ofPattern("yyyy/MM");
-
-private static String communityIconFolder() {
-    return "communities/icons/" + LocalDateTime.now().format(FOLDER_PERIOD_FORMATTER);
+private static String iconFolderOf(UUID communityId) {
+    return "communities/" + communityId + "/icon";
 }
 
-private static String communityBannerFolder() {
-    return "communities/banners/" + LocalDateTime.now().format(FOLDER_PERIOD_FORMATTER);
+private static String bannerFolderOf(UUID communityId) {
+    return "communities/" + communityId + "/banner";
 }
 ```
 
-São métodos, e não constantes `static final`, para que o `yyyy/MM` seja resolvido a cada chamada. A versão anterior era `static final`, e o particionamento ficava congelado no carregamento da classe — a partição só mudaria junto com um restart da aplicação, jogando todos os uploads do período seguinte no prefixo do mês em que o processo subiu.
+A chave final fica `communities/{communityId}/icon/{uuid}.{ext}` (ou `/banner/`), o que agrupa no bucket todos os arquivos de uma comunidade sob um único prefixo.
 
-O serviço:
+Na criação, o serviço:
 
 1. Valida nome e slug (`validateCommunityUniqueness`) e busca o owner **antes** de qualquer upload — se o nome já existir, nenhum objeto é gravado e a compensação do S3 não chega a ser acionada.
-2. Chama `uploadIfPresent(iconFile, communityIconFolder())` e o equivalente para o banner; o método ignora partes ausentes ou vazias (`file == null || file.isEmpty()`) e não gera upload nesse caso.
-3. Salva a comunidade com `iconMediaId` / `bannerMediaId` extraídos do `MediaResponse`.
-4. Devolve `CommunityResponseDTO` com `icon` e `banner` do tipo `MediaResponse` — ou seja, `mediaId` + a URL pré-assinada de cada arquivo, pronta para o front consumir.
+2. Salva a comunidade com `saveAndFlush` **antes** dos uploads, porque a pasta usa o `communityId`; registra o dono como `MODERATOR`.
+3. Chama `uploadIfPresent(iconFile, iconFolderOf(communityId))` e o equivalente para o banner; o método ignora partes ausentes ou vazias (`file == null || file.isEmpty()`) e não gera upload nesse caso.
+4. Preenche `iconMediaId` / `bannerMediaId` com os ids devolvidos.
+5. Devolve `CommunityResponseDTO` com `icon` e `banner` do tipo `MediaResponse` — ou seja, `mediaId` + a URL pré-assinada de cada arquivo, pronta para o front consumir.
 
-O método é anotado com `@Transactional`, e é essa transação que dá sentido à compensação descrita na [seção 5.1](#51-compensacao-do-s3-quando-a-transacao-nao-confirma): os dois `INSERT` (mídia e comunidade) são atômicos entre si, e o `deleteObject` acontece automaticamente no `afterCompletion` caso qualquer um deles falhe.
-
-Os prefixos `communities/icons/` e `communities/banners/` funcionam como a organização lógica do bucket; o particionamento por `yyyy/MM` é o que a AWS usa como *prefix* para cobrança e políticas de ciclo de vida.
+O método é anotado com `@Transactional`, e é essa transação que dá sentido à compensação descrita na [seção 5.1](#51-compensacao-do-s3-quando-a-transacao-nao-confirma): os `INSERT` (comunidade, inscrição do dono e mídias) são atômicos entre si, e o `deleteObject` acontece automaticamente no `afterCompletion` caso qualquer um deles falhe. Na troca, a mesma transação cobre os dois lados: se ela for revertida, o objeto novo é compensado e o anterior não chega a ser apagado.
 
 **Limite de tamanho por requisição:** `POST /communities` envia ícone e banner na mesma chamada, então o teto efetivo é o menor entre `spring.servlet.multipart.max-request-size` (12 MB) e duas vezes `media.upload.max-size-bytes` (5 MB cada). Os dois arquivos podem ocupar o request inteiro se ambos estiver no limite.
 
@@ -398,11 +419,11 @@ O upload atual trafega **pelo backend** (o arquivo vem no `multipart/form-data` 
 
 Fatos do que existe hoje no código, para evitar suposições ao consumir a camada:
 
-- **Não há controller de `media`.** O upload só é disparado por outro módulo (`POST /communities`); `MediaServiceI` é chamado internamente, não exposto em rota própria.
-- **O `deleteObject` existe só como compensação.** Não é exposto em `MediaServiceI` nem em rota: não existe como apagar uma mídia pela API, e linhas em `tb_media` e objetos no bucket só crescem. A operação é interna e não deixa metadados de auditoria (a remoção só aparece em `media.upload.rollback_failed`, quando falha).
+- **Não há controller de `media`.** O upload e a exclusão só são disparados por outro módulo (as rotas de ícone/banner de comunidade e o purge); `MediaServiceI` é chamado internamente, não exposto em rota própria.
+- **A exclusão de mídia é sempre indireta.** `deleteAfterCommit` apaga a linha na transação e o objeto após o commit ([seção 5.2](#52-exclusao-de-midia-deleteaftercommit)), mas só quando a mídia deixa de ser referenciada (troca, remoção ou purge). Não deixa metadados de auditoria: a remoção só aparece em log quando falha (`media.upload.rollback_failed`).
 - **A validação confia no `content_type` declarado.** O tamanho e a combinação `content-type`/extensão são verificados antes de ler os bytes (`MediaFileValidator`), mas não há inspeção de *magic bytes*. Como a checagem é de consistência e não de conteúdo, um JPEG renomeado de `.png` **e** declarado como `image/png` continua passando, e o `tb_media.content_type` registra `image/png`. Fechar isso exigiria ler os primeiros bytes do arquivo e comparar com o que foi declarado.
 - **A compensação é síncrona e sem retry.** O `deleteObject` roda no mesmo thread da requisição, dentro do `afterCompletion`, e não há retentativa. Falha de delete fica em `media.upload.rollback_failed` e o objeto vira órfão.
 - **A janela "JVM morre entre `putObject` e commit" continua aberta.** Nem a transação do banco nem a compensação resolvem esse caso; a correção é um job de varredura (outbox pattern) que compare o bucket contra `tb_media`.
-- **Cobertura de teste:** `media/service/impl/S3ServiceImplTest` (9 casos: upload bem-sucedido, propagação de falha de validação, delete quando o `save` falha, rollback confirmado/não confirmado/desconhecido, delete que falha e não mascara a exceção original) e `media/validator/MediaFileValidatorTest` (11 casos, incluindo extensão com barra). `community/service/impl/CommunityServiceImplTest` cobre o `create` do lado consumidor, e `shared/exception/GlobalExceptionHandlerTest` cobre o 413 do limite de upload.
-- **Os testes de integração sobem o contexto e exigem ambiente.** `CloneRedditApplicationTests`, `AuthenticationFlowIntegrationTest` e `SecurityConfigIntegrationTest` usam `@ActiveProfiles("test")`, e `src/test/resources/application-test.yaml` sobrescreve apenas as chaves JWT — as variáveis `AWS_*` precisam estar presentes para que o `StorageConfig` seja construído. Os testes unitários não sobem o contexto e rodam sem elas.
+- **Cobertura de teste:** `media/service/impl/S3ServiceImplTest` (16 casos: upload, validação, compensação no `save`, rollback confirmado/não confirmado/desconhecido, delete que falha sem mascarar a exceção original, URLs em lote e `deleteAfterCommit` com e sem transação) e `media/validator/MediaFileValidatorTest` (13 casos, incluindo extensão com barra). `community/service/impl/CommunityServiceImplTest` cobre criação, troca e remoção de ícone/banner do lado consumidor, e `shared/exception/GlobalExceptionHandlerTest` cobre o 413 do limite de upload.
+- **Os testes de integração não exigem credenciais reais.** Os testes que sobem o contexto usam `@ActiveProfiles("test")`, e `src/test/resources/application-test.yaml` define chaves JWT de teste e valores falsos para o bloco `aws`, suficientes para construir o `StorageConfig` (nenhum teste chama o S3 de verdade). O PostgreSQL vem do Testcontainers.
 - **Sem cache de URL.** `getUrl` assina uma nova URL a cada chamada; a validade é a de `AWS_S3_PRESIGNED_URL_SECONDS` a partir do momento da geração.
