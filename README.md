@@ -68,7 +68,7 @@ Principais características do produto original que servem de referência para e
 | Regra da comunidade | Regras ordenadas (`position`) dentro de uma comunidade | 🟡 Modelada; ainda não alimentada pelos endpoints |
 | Mídia | Metadados de arquivos em object storage (bucket + object key) | ✅ Modelada e implementada |
 | Refresh token | Sessão do usuário (rotação, revogação, uso único) | ✅ Modelada e implementada |
-| Post | Pertence a exatamente uma comunidade | ⬜ Não iniciada |
+| Post | Pertence a exatamente uma comunidade | 🟡 Create/list/get/soft-delete; votos/Hot e purge de mídia ainda não |
 | Comentário | Auto-relacionamento (resposta aninhada) | ⬜ Não iniciada |
 | Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | ⬜ Não iniciada |
 | Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | 🟡 Entrar, sair e listar implementados; promoção de moderadores não iniciada |
@@ -290,6 +290,11 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 - Upload com chave `{pasta}/{uuid}{extensão}` e pasta por comunidade (`communities/{communityId}/icon|banner`).
 - **URL pré-assinada** gerada sob demanda e devolvida na resposta (em lote nas listagens) — o domínio nunca persiste a URL.
 - Exclusão de mídia em duas fases: a linha de `tb_media` sai na transação e o objeto do bucket só depois do commit (`deleteAfterCommit`).
+
+**Posts** (`post`)
+- Criação em comunidade (`multipart`, mídia opcional via S3), listagem por comunidade (mais novos primeiro), detalhe e soft delete (autor ou `ADMIN`).
+- Autor precisa ser membro ativo; ao criar, enfileira `notification.post.created` no outbox (dono da comunidade).
+- Contadores `score`/`hot_score`/`comment_count` já existem na tabela (votos/ordenação Hot nas próximas etapas).
 
 **Mensageria** (`messaging`)
 - RabbitMQ no compose; topologia (exchange `clone-reddit.events`, fila `notification.events` + DLQ) declarada em código via Spring AMQP.
