@@ -45,6 +45,13 @@ public class CommunityController {
         return ResponseEntity.ok(communityServiceI.list(pageable));
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<PagedResponseDTO<CommunityResponseDTO>> listJoined(
+            @PageableDefault Pageable pageable
+    ) {
+        return ResponseEntity.ok(communityServiceI.listJoined(pageable));
+    }
+
     @GetMapping("/{communityId}")
     public ResponseEntity<CommunityResponseDTO> getById(@PathVariable UUID communityId) {
         return ResponseEntity.ok(communityServiceI.getById(communityId));

@@ -8,6 +8,7 @@ import com.motadev.clone_reddit.community.entity.CommunityStatus;
 import com.motadev.clone_reddit.community.entity.CommunityTopic;
 import com.motadev.clone_reddit.community.entity.CommunityType;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
+import com.motadev.clone_reddit.community.service.CommunityMembershipServiceI;
 import com.motadev.clone_reddit.auth.logging.AuthEventLog;
 import com.motadev.clone_reddit.community.logging.CommunityEventLog;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
@@ -77,6 +78,8 @@ class CommunityServiceImplTest {
     private MediaServiceI mediaServiceI;
     @Mock
     private EntityManager entityManager;
+    @Mock
+    private CommunityMembershipServiceI communityMembershipServiceI;
 
     private CommunityServiceImpl service;
 
@@ -84,7 +87,7 @@ class CommunityServiceImplTest {
     void setUp() {
         service = new CommunityServiceImpl(communityRepository, userServiceI,
                 new CommunityConverter(entityManager), new AuthenticatedUserProvider(new AuthEventLog()), mediaServiceI,
-                new CommunityEventLog());
+                new CommunityEventLog(), communityMembershipServiceI);
 
         setAuthenticatedUser(USER_ID);
         stubReferences();
@@ -113,6 +116,17 @@ class CommunityServiceImplTest {
         assertThat(response.banner().mediaId()).isEqualTo(BANNER_MEDIA_ID);
         assertThat(response.banner().url()).isEqualTo("https://signed/banner");
         verify(communityRepository).saveAndFlush(any(Community.class));
+    }
+
+    @Test
+    void deveRegistrarODonoComoModeradorAoCriar() {
+        prepareOwner();
+
+        CommunityResponseDTO response = service.create(request(), null, null);
+
+        verify(communityMembershipServiceI).registerOwner(response.communityId(), USER_ID);
+        assertThat(response.memberCount()).isEqualTo(1L);
+        assertThat(response.isMember()).isTrue();
     }
 
     @Test
@@ -390,6 +404,53 @@ class CommunityServiceImplTest {
         verify(mediaServiceI).getUrls(captor.capture());
         assertThat(Set.copyOf(captor.getValue()))
                 .containsExactlyInAnyOrder(ICON_MEDIA_ID, BANNER_MEDIA_ID, otherIconId);
+    }
+
+    @Test
+    void deveResolverIsMemberDaPaginaInteiraEmUmaUnicaConsulta() {
+        Community joined = persisted("java", null, null);
+        Community notJoined = persisted("kotlin", null, null);
+        when(communityRepository.findByDeletedAtIsNull(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(joined, notJoined)));
+        when(communityMembershipServiceI.findJoinedCommunityIds(eq(USER_ID), anyCollection()))
+                .thenReturn(Set.of(joined.getCommunityId()));
+
+        PagedResponseDTO<CommunityResponseDTO> page = service.list(PageRequest.of(0, 20));
+
+        assertThat(page.content().get(0).isMember()).isTrue();
+        assertThat(page.content().get(1).isMember()).isFalse();
+        verify(communityMembershipServiceI).findJoinedCommunityIds(eq(USER_ID), anyCollection());
+    }
+
+    @Test
+    void deveInformarSeOUsuarioSegueAComunidadeNoDetalhe() {
+        Community community = persisted("java", null, null);
+        when(communityRepository.findByCommunityIdAndDeletedAtIsNull(community.getCommunityId()))
+                .thenReturn(Optional.of(community));
+        when(communityMembershipServiceI.findJoinedCommunityIds(USER_ID, List.of(community.getCommunityId())))
+                .thenReturn(Set.of(community.getCommunityId()));
+
+        CommunityResponseDTO response = service.getById(community.getCommunityId());
+
+        assertThat(response.isMember()).isTrue();
+    }
+
+    @Test
+    void deveListarAsComunidadesQueOUsuarioSegue() {
+        Community community = persisted("java", null, null);
+        when(communityRepository.findJoinedBy(eq(USER_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(community)));
+
+        PagedResponseDTO<CommunityResponseDTO> page = service.listJoined(PageRequest.of(0, 20, Sort.by("name")));
+
+        assertThat(page.content()).hasSize(1);
+        assertThat(page.content().get(0).isMember()).isTrue();
+
+        // A ordem vem do ORDER BY joinedAt da query; um sort vindo do cliente
+        // seria concatenado a ela.
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(communityRepository).findJoinedBy(eq(USER_ID), captor.capture());
+        assertThat(captor.getValue().getSort().isUnsorted()).isTrue();
     }
 
     @Test

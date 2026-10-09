@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -34,4 +36,13 @@ public interface CommunityMembershipRepository extends JpaRepository<CommunityMe
     int deleteActive(@Param("communityId") UUID communityId,
                      @Param("userId") UUID userId,
                      @Param("roleId") Long roleId);
+
+    @Query("""
+            SELECT m.id.communityId FROM CommunityMembership m
+             WHERE m.id.userId = :userId
+               AND m.id.communityId IN :communityIds
+               AND m.deactivatedAt IS NULL
+            """)
+    Set<UUID> findActiveCommunityIds(@Param("userId") UUID userId,
+                                     @Param("communityIds") Collection<UUID> communityIds);
 }

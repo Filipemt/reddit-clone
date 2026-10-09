@@ -40,7 +40,8 @@ public class CommunityConverter {
     }
 
     public CommunityResponseDTO toResponseDto(Community community,
-                                              Map<UUID, String> urls) {
+                                              Map<UUID, String> urls,
+                                              boolean isMember) {
         return new CommunityResponseDTO(
                 community.getCommunityId(),
                 community.getName(),
@@ -52,6 +53,8 @@ public class CommunityConverter {
                 community.getType().getName(),
                 toReference(community.getIconMediaId(), urls),
                 toReference(community.getBannerMediaId(), urls),
+                community.getMemberCount(),
+                isMember,
                 community.getCreatedAt()
         );
     }

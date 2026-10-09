@@ -13,6 +13,8 @@ import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -76,6 +78,21 @@ public class CommunityMembershipServiceImpl implements CommunityMembershipServic
 
         communityRepository.decrementMemberCount(communityId);
         communityEventLog.membershipLeaveSuccess(communityId, userId);
+    }
+
+    @Override
+    @Transactional
+    public void registerOwner(UUID communityId, UUID ownerId) {
+        communityMembershipRepository.insertIfAbsent(communityId, ownerId, CommunityMemberRoleEnum.MODERATOR.getId());
+    }
+
+    @Override
+    public Set<UUID> findJoinedCommunityIds(UUID userId, Collection<UUID> communityIds) {
+        if (communityIds.isEmpty()) {
+            return Set.of();
+        }
+
+        return communityMembershipRepository.findActiveCommunityIds(userId, communityIds);
     }
 
     private Community findActiveOrThrow(UUID communityId) {

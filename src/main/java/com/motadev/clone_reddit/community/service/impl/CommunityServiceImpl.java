@@ -6,6 +6,7 @@ import com.motadev.clone_reddit.community.dtos.response.CommunityResponseDTO;
 import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.logging.CommunityEventLog;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
+import com.motadev.clone_reddit.community.service.CommunityMembershipServiceI;
 import com.motadev.clone_reddit.community.service.CommunityServiceI;
 import com.motadev.clone_reddit.media.dtos.response.MediaResponse;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -42,6 +44,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
     private final CommunityConverter communityConverter;
     private final CommunityRepository communityRepository;
     private final CommunityEventLog communityEventLog;
+    private final CommunityMembershipServiceI communityMembershipServiceI;
 
     private static final Sort SORT_NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
 
@@ -52,13 +55,15 @@ public class CommunityServiceImpl implements CommunityServiceI {
                                 CommunityConverter communityConverter,
                                 AuthenticatedUserProvider authenticatedUserProvider,
                                 MediaServiceI mediaServiceI,
-                                CommunityEventLog communityEventLog) {
+                                CommunityEventLog communityEventLog,
+                                CommunityMembershipServiceI communityMembershipServiceI) {
         this.communityRepository = communityRepository;
         this.userServiceI = userServiceI;
         this.communityConverter = communityConverter;
         this.authenticatedUserProvider = authenticatedUserProvider;
         this.mediaServiceI = mediaServiceI;
         this.communityEventLog = communityEventLog;
+        this.communityMembershipServiceI = communityMembershipServiceI;
     }
 
     @Override
@@ -71,9 +76,10 @@ public class CommunityServiceImpl implements CommunityServiceI {
         validateCommunityUniqueness(createCommunityRequestDTO);
         var owner = userServiceI.getUserById(userId);
 
-        Community saved = communityRepository.saveAndFlush(
-                communityConverter.toEntity(createCommunityRequestDTO, owner.userId(), null, null)
-        );
+        Community community = communityConverter.toEntity(createCommunityRequestDTO, owner.userId(), null, null);
+        community.setMemberCount(1L);
+        Community saved = communityRepository.saveAndFlush(community);
+        communityMembershipServiceI.registerOwner(saved.getCommunityId(), owner.userId());
 
         MediaResponse iconMedia = uploadIfPresent(iconFile, iconFolderOf(saved.getCommunityId()));
         MediaResponse bannerMedia = uploadIfPresent(bannerFile, bannerFolderOf(saved.getCommunityId()));
@@ -81,7 +87,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
         saved.setIconMediaId(idOf(iconMedia));
         saved.setBannerMediaId(idOf(bannerMedia));
 
-        return communityConverter.toResponseDto(saved, urlsOf(iconMedia, bannerMedia));
+        return communityConverter.toResponseDto(saved, urlsOf(iconMedia, bannerMedia), true);
     }
 
     @Override
@@ -127,7 +133,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
 
         mediaServiceI.deleteAfterCommit(idsOf(previousMediaId));
 
-        return communityConverter.toResponseDto(community, urlsOf(media));
+        return communityConverter.toResponseDto(community, urlsOf(media), isMemberOf(community));
     }
 
     private void clearMediaSlot(Community community, boolean iconSlot) {
@@ -191,13 +197,30 @@ public class CommunityServiceImpl implements CommunityServiceI {
     @Override
     @Transactional
     public PagedResponseDTO<CommunityResponseDTO> list(Pageable pageable) {
+        UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
         Page<Community> page = communityRepository.findByDeletedAtIsNull(withSortNewestFirst(pageable));
+
+        Map<UUID, String> urls = urlsFor(mediaIdsOf(page.getContent()));
+        Set<UUID> joinedIds = communityMembershipServiceI.findJoinedCommunityIds(
+                userId, communityIdsOf(page.getContent()));
+
+        return PagedResponseDTO.from(
+                page,
+                community -> communityConverter.toResponseDto(
+                        community, urls, joinedIds.contains(community.getCommunityId()))
+        );
+    }
+
+    @Override
+    @Transactional
+    public PagedResponseDTO<CommunityResponseDTO> listJoined(Pageable pageable) {
+        UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
+        Page<Community> page = communityRepository.findJoinedBy(userId, withoutSort(pageable));
 
         Map<UUID, String> urls = urlsFor(mediaIdsOf(page.getContent()));
 
         return PagedResponseDTO.from(
-                page,
-                community -> communityConverter.toResponseDto(community, urls)
+                page, community -> communityConverter.toResponseDto(community, urls, true)
         );
     }
 
@@ -207,7 +230,7 @@ public class CommunityServiceImpl implements CommunityServiceI {
         Community community = communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Community not found."));
 
-        return communityConverter.toResponseDto(community, urlsFor(mediaIdsOf(community)));
+        return communityConverter.toResponseDto(community, urlsFor(mediaIdsOf(community)), isMemberOf(community));
     }
 
     @Override
@@ -216,7 +239,19 @@ public class CommunityServiceImpl implements CommunityServiceI {
         Community community = communityRepository.findBySlugAndDeletedAtIsNull(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Community not found."));
 
-        return communityConverter.toResponseDto(community, urlsFor(mediaIdsOf(community)));
+        return communityConverter.toResponseDto(community, urlsFor(mediaIdsOf(community)), isMemberOf(community));
+    }
+
+    private boolean isMemberOf(Community community) {
+        UUID userId = authenticatedUserProvider.extractUserIdFromAuthentication();
+
+        return communityMembershipServiceI
+                .findJoinedCommunityIds(userId, List.of(community.getCommunityId()))
+                .contains(community.getCommunityId());
+    }
+
+    private static List<UUID> communityIdsOf(List<Community> communities) {
+        return communities.stream().map(Community::getCommunityId).toList();
     }
 
     private Map<UUID, String> urlsFor(Collection<UUID> mediaIds) {
@@ -229,6 +264,14 @@ public class CommunityServiceImpl implements CommunityServiceI {
         }
 
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), SORT_NEWEST_FIRST);
+    }
+
+    private static Pageable withoutSort(Pageable pageable) {
+        if (!pageable.isPaged()) {
+            return PageRequest.of(0, FALLBACK_PAGE_SIZE);
+        }
+
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }
 
     private Collection<UUID> mediaIdsOf(Community community) {

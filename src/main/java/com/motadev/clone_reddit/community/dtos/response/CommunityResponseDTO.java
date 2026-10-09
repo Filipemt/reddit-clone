@@ -16,6 +16,8 @@ public record CommunityResponseDTO(
         String typeName,
         MediaResponse icon,
         MediaResponse banner,
+        Long memberCount,
+        boolean isMember,
         LocalDateTime createdAt
     ) {
 }

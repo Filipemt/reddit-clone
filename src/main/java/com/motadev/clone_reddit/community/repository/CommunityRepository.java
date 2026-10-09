@@ -42,6 +42,24 @@ public interface CommunityRepository extends JpaRepository<Community, UUID> {
     @Query("SELECT c FROM Community c WHERE c.deletedAt IS NOT NULL AND c.deletedAt <= :cutoff")
     List<Community> findCandidatesForPurge(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"topic", "type"})
+    @Query(value = """
+            SELECT c FROM Community c
+              JOIN CommunityMembership m ON m.id.communityId = c.communityId
+             WHERE m.id.userId = :userId
+               AND m.deactivatedAt IS NULL
+               AND c.deletedAt IS NULL
+             ORDER BY m.joinedAt DESC
+            """,
+            countQuery = """
+            SELECT COUNT(c) FROM Community c
+              JOIN CommunityMembership m ON m.id.communityId = c.communityId
+             WHERE m.id.userId = :userId
+               AND m.deactivatedAt IS NULL
+               AND c.deletedAt IS NULL
+            """)
+    Page<Community> findJoinedBy(@Param("userId") UUID userId, Pageable pageable);
+
     @Modifying
     @Query(value = "UPDATE tb_community SET member_count = member_count + 1 WHERE community_id = :communityId",
             nativeQuery = true)

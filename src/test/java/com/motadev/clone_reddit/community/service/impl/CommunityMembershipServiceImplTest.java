@@ -26,8 +26,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -152,6 +154,22 @@ class CommunityMembershipServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(communityMembershipRepository, never()).deleteActive(any(UUID.class), any(UUID.class), anyLong());
+    }
+
+    @Test
+    void deveRegistrarODonoComoModeradorSemIncrementarContador() {
+        service.registerOwner(COMMUNITY_ID, OWNER_ID);
+
+        verify(communityMembershipRepository)
+                .insertIfAbsent(COMMUNITY_ID, OWNER_ID, CommunityMemberRoleEnum.MODERATOR.getId());
+        verify(communityRepository, never()).incrementMemberCount(any(UUID.class));
+    }
+
+    @Test
+    void naoDeveConsultarInscricoesQuandoNaoHaComunidades() {
+        assertThat(service.findJoinedCommunityIds(USER_ID, List.of())).isEmpty();
+
+        verify(communityMembershipRepository, never()).findActiveCommunityIds(any(UUID.class), anyCollection());
     }
 
     private void givenActiveCommunity(CommunityTypeEnum typeEnum) {

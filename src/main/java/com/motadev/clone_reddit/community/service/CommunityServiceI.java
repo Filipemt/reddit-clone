@@ -13,6 +13,8 @@ public interface CommunityServiceI {
 
     PagedResponseDTO<CommunityResponseDTO> list(Pageable pageable);
 
+    PagedResponseDTO<CommunityResponseDTO> listJoined(Pageable pageable);
+
     CommunityResponseDTO getById(UUID communityId);
 
     CommunityResponseDTO getBySlug(String slug);
