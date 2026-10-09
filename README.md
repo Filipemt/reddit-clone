@@ -64,7 +64,7 @@ Principais características do produto original que servem de referência para e
 | Entidade | Observações | Situação |
 |---|---|---|
 | Usuário | Autenticação, perfil, karma | ✅ Modelada e implementada |
-| Comunidade | Contêiner estrutural do post; possui moderadores e regras | 🟡 Modelada; apenas a criação está implementada |
+| Comunidade | Contêiner estrutural do post; possui moderadores e regras | 🟡 Criação, listagem, busca por id/slug, ícone/banner, soft delete e purge implementados; edição de dados não |
 | Regra da comunidade | Regras ordenadas (`position`) dentro de uma comunidade | 🟡 Modelada; ainda não alimentada pelos endpoints |
 | Mídia | Metadados de arquivos em object storage (bucket + object key) | ✅ Modelada e implementada |
 | Refresh token | Sessão do usuário (rotação, revogação, uso único) | ✅ Modelada e implementada |
@@ -121,7 +121,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 > Registro vivo das decisões tomadas ao longo do projeto, incluindo o raciocínio por trás de cada uma. Cresce conforme o projeto avança.
 
 ### Karma do usuário
-- **Decisão:** karma será um campo persistido (`users.karma_score`), atualizado de forma **incremental** (`+1`/`-1`/delta) a cada evento de voto — nunca recalculado por completo a cada leitura.
+- **Decisão:** karma será um campo persistido (`tb_users.karma`, `INT`, hoje sempre `0` porque ainda não há votos), atualizado de forma **incremental** (`+1`/`-1`/delta) a cada evento de voto — nunca recalculado por completo a cada leitura.
 - **Motivo:** recalcular a soma de todos os votos de todos os posts/comentários de um usuário a cada visita de perfil não escala. Karma muda com frequência, mas em pequenos incrementos — perfil ideal para contador incremental.
 - **Ponto de atenção:** concorrência em escritas simultâneas (dois votos ao mesmo tempo no mesmo usuário) exige operação atômica no banco, não "ler → somar em memória → gravar".
 - **Evolução futura:** job periódico de reconciliação, recalculando o valor real a partir dos dados brutos, como camada de correção/auditoria.
@@ -137,7 +137,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 ### Armazenamento de mídia
 - **Decisão:** arquivos (imagem/vídeo) vão para object storage (S3, via AWS SDK v2); o banco de dados guarda apenas a referência (`tb_media`: bucket + object key + content type + tamanho).
 - **Motivo:** banco de dados não é otimizado para armazenar binários grandes; a API S3 permite o mesmo código em qualquer ambiente compatível.
-- **Na prática:** a chave do objeto é `{pasta}/{uuid}{extensão}`, com pasta segmentada por `yyyy/MM` (`communities/icons/...`, `communities/banners/...`). O UUID evita colisão e não expõe o nome original do arquivo. A extensão vem de uma allowlist validada, nunca do nome cru do cliente.
+- **Na prática:** a chave do objeto é `{pasta}/{uuid}{extensão}`, com pasta por comunidade (`communities/{communityId}/icon/...`, `communities/{communityId}/banner/...`). Por isso a comunidade é gravada antes do upload. O UUID evita colisão e não expõe o nome original do arquivo. A extensão vem de uma allowlist validada, nunca do nome cru do cliente.
 - **Leitura:** URLs pré-assinadas (`S3Presigner`) com validade configurável em `AWS_S3_PRESIGNED_URL_SECONDS` — o domínio nunca persiste a URL, que expira.
 - **Atomicidade:** o `putObject` não participa da transação do banco. A camada de mídia registra uma `TransactionSynchronization` a cada upload e, no `afterCompletion`, apaga o objeto se a transação não confirmar. O registro em `tb_media` é revertido junto com o restante do trabalho, então banco e bucket convergem — inclusive quando a falha só é detectada no commit. Uma segunda janela é coberta dentro do próprio `upload`: se o `save` da mídia falhar depois do `putObject`, o objeto é apagado imediatamente, já que sem o registro ele seria inalcançável para qualquer compensação.
 - **Ponto de atenção:** se a JVM morrer entre o `putObject` e o commit, o objeto vira órfão e só um job de varredura (outbox pattern) poderia limpá-lo.
@@ -148,7 +148,8 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 - **Detalhe:** as tabelas migraram de `uuid` para `bigint identity` porque são de leitura frequente, pequena cardinalidade e alto volume de `join`; a PK do domínio (`community_id`, `user_id`, `media_id`, `rule_id`) permanece `UUID`.
 
 ### Dono da comunidade: FK ou referência solta?
-- **Decisão:** `tb_community.owner_id` guarda o `UUID` do usuário **sem** foreign key para `tb_users`.
+- **Decisão:** `tb_community.owner_id` guarda o `UUID` do usuário **sem** foreign key para `tb_users` (a FK original foi removida em `20260923_drop_community_owner_fk`).
+- **Exceções no schema:** `tb_community.deleted_by` (`fk_community_deleted_by`) e `tb_community_membership.user_id` (`fk_membership_user`, `ON DELETE CASCADE`) **têm** FK para `tb_users`. O desacoplamento vale para o código — a entidade `Community` e a `CommunityMembership` guardam só o `UUID` e não mapeiam `User`.
 - **Motivo:** evita dependência de ciclo entre os módulos `community` e `user` (o pacote `community` não conhece a entidade `User`) e mantém a entidade desacoplada. A integridade é garantida pela aplicação, que valida o usuário antes de criar a comunidade.
 - **Evolução futura:** se a integridade referencial no banco passar a ser necessária, reintroduzir a FK é uma migration aditiva e isolada.
 
@@ -162,17 +163,18 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 
 ```
 /docs
+  /communities         → Ciclo de vida das comunidades (soft delete, purge) e inscrição (membership)
   /logging             → Convenções de logs estruturados (ECS) e catálogo de eventos
   /s3                  → Documentação da integração com object storage (upload, URL pré-assinada, IAM, CORS)
   /security            → Documentação de segurança (autenticação, JWT, chaves, etc.)
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
-  /mer                 → Modelo Entidade-Relacionamento e modelagem de dados
+  /mer                 → Modelo Entidade-Relacionamento e modelagem de dados (ainda não criado)
   /adr                 → Architecture Decision Records (se adotado futuramente)
 /docker                → docker-compose de desenvolvimento (PostgreSQL)
 /src/main/java/com/motadev/clone_reddit
   /auth                → Autenticação (login, refresh, logout) e ciclo de vida da sessão
   /user                → Cadastro, perfil, papéis e exclusão de conta
-  /community           → Comunidades, regras e referências (tipo/status/tópico)
+  /community           → Comunidades, inscrições, regras e referências (tipo/status/tópico/papel de membro)
   /media               → Upload para object storage e URLs pré-assinadas
   /shared              → Configuração, tratamento global de exceções, segurança e extras transversais
 README.md              → Este documento
@@ -230,7 +232,7 @@ Veja [docs/security/jwt-keys.md](docs/security/jwt-keys.md) para detalhes, teste
 ./mvnw spring-boot:run
 ```
 
-O Liquibase aplica as migrations, seeda os papéis (`BASIC`, `ADMIN`), as referências de comunidade (tipos, status e 20 tópicos) e cria o schema de mídia. O `AdminUserConfig` cria o usuário admin inicial:
+O Liquibase aplica as migrations, seeda os papéis (`BASIC`, `ADMIN`), as referências de comunidade (tipos, status, 20 tópicos e os papéis de membro `MEMBER`/`MODERATOR`) e cria o schema de mídia. O `AdminUserConfig` cria o usuário admin inicial:
 
 ```
 POST /authentication/login
@@ -251,7 +253,7 @@ Os testes de integração sobem o PostgreSQL via Testcontainers. No macOS com Co
 
 ## 🚧 Status atual
 
-**Fase: autenticação completa + modelagem inicial do domínio (comunidades) + camada de mídia em S3.**
+**Fase: autenticação completa + comunidades e inscrições + camada de mídia em S3.**
 
 Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de negócio (`auth`, `user`, `community`, `media`, `shared`). Schema gerenciado por **Liquibase** (16 changelogs), **PostgreSQL** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
@@ -269,13 +271,17 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 - Modelo de domínio completo: `Community` (nome, slug, descrição, tópico, tipo, status, dono, timestamps) com **unicidade em `name` e `slug`**.
 - Tabelas de referência seedadas: 3 tipos, 3 status e 20 tópicos; criação com `409 Conflict` em duplicidade.
 - Dono extraído do JWT via `AuthenticatedUserProvider` — o serviço não recebe o usuário do controller.
-- Entidade `CommunityRules` mapeada (`position`, título, descrição) com cascade/`orphanRemoval`.
+- Entidade `CommunityRules` mapeada (`position`, título, descrição) com cascade/`orphanRemoval`; ainda sem endpoint.
+- **Leitura**: listagem paginada (mais novas primeiro) e busca por id ou slug, sempre filtrando comunidades removidas; tópico e tipo carregados por `@EntityGraph` e URLs de mídia assinadas em lote.
+- **Ícone e banner**: troca e remoção pelo dono ou por `ADMIN`; a mídia anterior é apagada só depois do commit.
+- **Soft delete e purge**: a remoção marca `deleted_at`/`deleted_by` e reserva `name`/`slug`; um job semanal com advisory lock do PostgreSQL apaga fisicamente, em lotes, as comunidades removidas há mais de 30 dias e suas mídias. Ver [docs/communities/README.md](docs/communities/README.md).
 - **Membership**: entrar e sair de comunidades de forma idempotente, com `member_count` alterado só por `UPDATE` atômico; o dono entra como moderador na criação; respostas trazem `memberCount` e `isMember`. A exclusão de conta desativa as inscrições e remove as comunidades do dono, via interface `UserAccountDeletionHandler` (sem ciclo entre `user` e `community`). Ver [docs/communities/membership.md](docs/communities/membership.md).
 
 **Mídia** (`media`)
 - `S3Client` para escrita e `S3Presigner` para leitura; `tb_media` guarda bucket, object key, content type e tamanho.
-- Upload com chave `{pasta}/{uuid}{extensão}` e pastas segmentadas por `yyyy/MM`.
-- **URL pré-assinada** gerada sob demanda e devolvida na resposta — o domínio nunca persiste a URL.
+- Upload com chave `{pasta}/{uuid}{extensão}` e pasta por comunidade (`communities/{communityId}/icon|banner`).
+- **URL pré-assinada** gerada sob demanda e devolvida na resposta (em lote nas listagens) — o domínio nunca persiste a URL.
+- Exclusão de mídia em duas fases: a linha de `tb_media` sai na transação e o objeto do bucket só depois do commit (`deleteAfterCommit`).
 
 ### Endpoints
 
@@ -288,6 +294,12 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 | GET | `/users/{userId}` | Perfil do usuário |
 | DELETE | `/users/me` | Exclusão de conta (soft delete) |
 | POST | `/communities` | Criação de comunidade (`multipart/form-data`, ícone e banner opcionais) |
+| GET | `/communities` | Listagem paginada de comunidades ativas |
+| GET | `/communities/{id}` | Detalhe por id (`404` se removida) |
+| GET | `/communities/slug/{slug}` | Detalhe por slug (`404` se removida) |
+| PUT | `/communities/{id}/icon` · `/banner` | Troca de ícone ou banner (`multipart/form-data`, parte `file`; dono ou `ADMIN`) |
+| DELETE | `/communities/{id}/icon` · `/banner` | Remoção de ícone ou banner (dono ou `ADMIN`) |
+| DELETE | `/communities/{id}` | Soft delete idempotente (dono ou `ADMIN`) |
 | GET | `/communities/me` | Comunidades que o usuário segue, da inscrição mais recente para a mais antiga |
 | PUT | `/communities/{id}/membership` | Entrar na comunidade (idempotente) |
 | DELETE | `/communities/{id}/membership` | Sair da comunidade (idempotente) |
@@ -301,15 +313,15 @@ Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, a
 - **Validação de arquivo crua:** o upload rejeita tamanho acima de `MEDIA_MAX_SIZE_BYTES` (5 MB) e combinações `content_type`/extensão fora das regras de `media.upload.types`, mas não inspeciona os *magic bytes* do arquivo — um JPEG renomeado de `.png` **e** declarado como `image/png` passa na validação. A checagem garante apenas que a declaração é *internamente consistente*, não que ela é verdadeira.
 - **Rollback do S3 sem retry:** a compensação roda de forma síncrona no mesmo thread da requisição e sem retentativas. Se o `deleteObject` falhar, o erro fica no log (`media.upload.rollback_failed`) e o objeto vira órfão.
 - **Sem job de purga de órfãos:** não há varredura periódica para localizar objetos no bucket sem registro em `tb_media` (outbox pattern).
-- **Sem endpoint de leitura de comunidade:** só existe a criação. Listagem, busca, regras, posts e moderação ainda não foram implementadas.
-- **Sem operação de delete de mídia:** o `deleteObject` existe apenas como compensação interna; não há como remover uma mídia pela API, e linhas em `tb_media` e objetos no bucket só crescem.
+- **Comunidade sem edição:** nome, descrição, tópico, tipo e status não mudam depois da criação; regras da comunidade, busca textual, posts e moderação ainda não foram implementados.
+- **Exclusão de mídia sem retry nem auditoria:** o `deleteObject` após o commit também não tem retentativa; se falhar, o objeto vira órfão e só aparece em `media.upload.rollback_failed`.
 - **`findUserOrThrow` não filtra `isActive`:** um usuário desativado ainda pode ser lido por id.
 - **Sem job de purga de refresh tokens** expirados/revogados; sem revogação de access token antes do `exp`. O filtro de JWT também não verifica `isActive`: após excluir a conta, o usuário ainda age (por exemplo, entra em comunidades) até o token expirar.
 - **Sem cache de URL pré-assinada:** uma nova URL é assinada a cada leitura.
 
 ### Próximos passos planejados
 
-Leitura e busca de comunidades, promoção de moderadores (RBAC contextual), posts, comentários aninhados e o sistema de votos — a parte do projeto que traz concorrência, cache e mensageria.
+Edição e busca textual de comunidades, promoção de moderadores (RBAC contextual), posts, comentários aninhados e o sistema de votos — a parte do projeto que traz concorrência, cache e mensageria.
 
 ### Stack
 
