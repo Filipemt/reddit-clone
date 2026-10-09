@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,6 +17,27 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
     Optional<Post> findByPostIdAndDeletedAtIsNull(UUID postId);
 
     Page<Post> findByCommunityIdAndDeletedAtIsNull(UUID communityId, Pageable pageable);
+
+    @Query("""
+            SELECT p FROM Post p
+             WHERE p.communityId = :communityId
+               AND p.deletedAt IS NULL
+               AND (:cutoff IS NULL OR p.createdAt >= :cutoff)
+            """)
+    Page<Post> findActiveByCommunityAndCreatedAtAfter(
+            @Param("communityId") UUID communityId,
+            @Param("cutoff") LocalDateTime cutoff,
+            Pageable pageable
+    );
+
+    @Modifying
+    @Query(value = """
+            UPDATE tb_post
+               SET hot_score = :hotScore
+             WHERE post_id = :postId
+               AND deleted_at IS NULL
+            """, nativeQuery = true)
+    int updateHotScore(@Param("postId") UUID postId, @Param("hotScore") double hotScore);
 
     @Modifying
     @Query(value = """
