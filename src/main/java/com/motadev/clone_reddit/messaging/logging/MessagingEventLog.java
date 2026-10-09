@@ -16,7 +16,23 @@ public class MessagingEventLog {
                 .addKeyValue("exchange", exchange)
                 .addKeyValue("notificationQueue", notificationQueue)
                 .addKeyValue("notificationDlq", notificationDlq)
-                .setMessage("RabbitMQ topology beans registered")
+                .setMessage("RabbitMQ topology declared on broker")
+                .log();
+    }
+
+    public void topologyFailed(
+            String exchange,
+            String notificationQueue,
+            String notificationDlq,
+            String reason
+    ) {
+        log.atError()
+                .addKeyValue("event", "messaging.topology.failed")
+                .addKeyValue("exchange", exchange)
+                .addKeyValue("notificationQueue", notificationQueue)
+                .addKeyValue("notificationDlq", notificationDlq)
+                .addKeyValue("reason", reason)
+                .setMessage("Failed to declare or verify RabbitMQ topology on broker")
                 .log();
     }
 }
