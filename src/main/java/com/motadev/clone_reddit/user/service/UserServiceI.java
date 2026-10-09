@@ -13,4 +13,6 @@ public interface UserServiceI {
     Optional<UserAuthInfo> validateCredentials(String username, String rawPassword);
     Optional<UserAuthInfo> findAuthInfoById(UUID userId);
     void softDeleteMyAccount();
+
+    void adjustKarma(UUID userId, long delta);
 }

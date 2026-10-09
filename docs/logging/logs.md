@@ -165,7 +165,14 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `comment.delete.already_deleted` | DEBUG | `commentId`, `userId` | Soft delete idempotente |
 | `comment.delete.forbidden` | WARN | `commentId`, `userId` | Quem não é autor/admin tenta apagar |
 
-### 4.12 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
+### 4.12 Vote — `vote/logging/VoteEventLog.java` (chamado por `VoteServiceImpl`)
+
+| Evento | Nível | Campos | Quando ocorre |
+|---|---|---|---|
+| `vote.cast.success` | INFO | `userId`, `targetType`, `targetId`, `previousValue`, `value` | Voto aplicado (incluindo remoção com `value=0`) |
+| `vote.cast.invalid` | WARN | `userId`, `value` | Valor fora de `-1/0/1` |
+
+### 4.13 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
