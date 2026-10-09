@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="create-tb-outbox-event" author="motadev">
+        <createTable tableName="tb_outbox_event">
+            <column name="event_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="aggregate_type" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="aggregate_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="event_type" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="routing_key" type="VARCHAR(128)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payload" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attempts" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="published_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+            <column name="last_error" type="VARCHAR(512)">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <sql dbms="postgresql">
+            CREATE INDEX idx_outbox_pending_created
+                ON tb_outbox_event (created_at ASC)
+                WHERE status = 'PENDING';
+        </sql>
+    </changeSet>
+</databaseChangeLog>
