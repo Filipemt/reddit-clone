@@ -130,7 +130,7 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `community.create.conflict` | WARN | `name`, `slug`, `deleted` | Tentativa de criar comunidade com name/slug já existentes (409). `deleted=true` quando o conflito é com comunidade soft-deleted |
 | `community.media.forbidden` | WARN | `communityId`, `userId` | Usuário sem ownership/admin tenta alterar mídia ou gerenciar a comunidade |
 | `community.delete.already_deleted` | DEBUG | `communityId`, `userId` | Soft delete idempotente: comunidade já estava marcada como deletada |
-| `community.delete.success` | INFO | `communityId`, `userId`, `isOwner`, `mediaCount` | Soft delete concluído; mídias enfileiradas para remoção após o commit |
+| `community.delete.success` | INFO | `communityId`, `userId`, `isOwner`, `mediaCount` | Soft delete concluído; `mediaCount` mídias retidas até o purge |
 | `community.purge.lock_not_acquired` | DEBUG | `advisoryLockId` | Outra instância detém o advisory lock; o job de purge pula a execução |
 | `community.purge.success` | INFO | `purgedCount`, `retentionDays` | Comunidades soft-deleted além da retenção foram purgadas fisicamente |
 | `community.purge.nothing` | DEBUG | `retentionDays` | Lock adquirido, mas nenhuma comunidade elegível para purge |

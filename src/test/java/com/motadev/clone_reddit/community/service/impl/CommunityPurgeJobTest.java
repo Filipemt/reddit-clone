@@ -8,6 +8,7 @@ import com.motadev.clone_reddit.media.service.MediaServiceI;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -88,8 +90,9 @@ class CommunityPurgeJobTest {
 
         communityPurgeJob.purge();
 
-        verify(mediaServiceI).deleteAfterCommit(List.of(iconMediaId, bannerMediaId));
-        verify(communityRepository).delete(community);
+        InOrder inOrder = inOrder(communityRepository, mediaServiceI);
+        inOrder.verify(communityRepository).delete(community);
+        inOrder.verify(mediaServiceI).deleteAfterCommit(List.of(iconMediaId, bannerMediaId));
         verify(jdbcTemplate).queryForObject(UNLOCK_SQL, Boolean.class, ADVISORY_LOCK_ID);
     }
 

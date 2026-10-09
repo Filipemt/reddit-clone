@@ -158,18 +158,14 @@ public class CommunityServiceImpl implements CommunityServiceI {
             return;
         }
 
-        Collection<UUID> mediaIds = idsOf(community.getIconMediaId(), community.getBannerMediaId());
-
         community.setDeletedAt(LocalDateTime.now());
         community.setDeletedBy(userId);
-
-        mediaServiceI.deleteAfterCommit(mediaIds);
 
         communityEventLog.deleteSuccess(
                 communityId,
                 userId,
                 community.getOwnerId().equals(userId),
-                mediaIds.size());
+                idsOf(community.getIconMediaId(), community.getBannerMediaId()).size());
     }
 
     private Community findActiveOrThrow(UUID communityId) {

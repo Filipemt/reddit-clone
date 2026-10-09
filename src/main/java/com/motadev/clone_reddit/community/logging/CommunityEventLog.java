@@ -33,7 +33,7 @@ public class CommunityEventLog {
                 .addKeyValue("userId", userId)
                 .addKeyValue("isOwner", isOwner)
                 .addKeyValue("mediaCount", mediaCount)
-                .setMessage("Community soft deleted")
+                .setMessage("Community soft deleted; media retained until purge")
                 .log();
     }
 

@@ -59,7 +59,6 @@ import static org.mockito.ArgumentMatchers.endsWith;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -274,42 +273,46 @@ class CommunityServiceImplTest {
     }
 
     @Test
-    void deveApagarAMidiaDaComunidadeRemovida() {
+    void deveManterAMidiaDaComunidadeRemovida() {
         UUID communityId = UUID.randomUUID();
         setAuthenticatedUser(USER_ID);
-        when(communityRepository.findByCommunityId(communityId))
-                .thenReturn(Optional.of(ownedBy(communityId, USER_ID, ICON_MEDIA_ID, BANNER_MEDIA_ID)));
+        Community community = ownedBy(communityId, USER_ID, ICON_MEDIA_ID, BANNER_MEDIA_ID);
+        when(communityRepository.findByCommunityId(communityId)).thenReturn(Optional.of(community));
 
         service.delete(communityId);
 
-        verify(mediaServiceI).deleteAfterCommit(List.of(ICON_MEDIA_ID, BANNER_MEDIA_ID));
+        assertThat(community.getIconMediaId()).isEqualTo(ICON_MEDIA_ID);
+        assertThat(community.getBannerMediaId()).isEqualTo(BANNER_MEDIA_ID);
+        verify(mediaServiceI, never()).deleteAfterCommit(anyCollection());
     }
 
     @Test
-    void naoDeveApagarMidiaDeComunidadeRemovidaDuasVezes() {
+    void naoDeveAlterarComunidadeJaRemovida() {
         UUID communityId = UUID.randomUUID();
         setAuthenticatedUser(USER_ID);
-        when(communityRepository.findByCommunityId(communityId))
-                .thenReturn(Optional.of(ownedBy(communityId, USER_ID, ICON_MEDIA_ID, null)));
+        Community community = ownedBy(communityId, USER_ID, ICON_MEDIA_ID, null);
+        when(communityRepository.findByCommunityId(communityId)).thenReturn(Optional.of(community));
 
         service.delete(communityId);
+        LocalDateTime firstDeletedAt = community.getDeletedAt();
         service.delete(communityId);
 
-        // O segundo DELETE precisa responder 204 sem tocar no S3 de novo, senao o
-        // idempotente custaria uma presign inutil e um delete sem registro.
-        verify(mediaServiceI, times(1)).deleteAfterCommit(List.of(ICON_MEDIA_ID));
+        assertThat(community.getDeletedAt()).isEqualTo(firstDeletedAt);
+        assertThat(community.getIconMediaId()).isEqualTo(ICON_MEDIA_ID);
+        verify(mediaServiceI, never()).deleteAfterCommit(anyCollection());
     }
 
     @Test
     void deveMarcarQuemRemoveuComoAdminQuandoNaoEOwner() {
         UUID communityId = UUID.randomUUID();
         setAuthenticatedUser(USER_ID, RoleValues.ADMIN);
-        when(communityRepository.findByCommunityId(communityId))
-                .thenReturn(Optional.of(ownedBy(communityId, UUID.randomUUID(), null, null)));
+        Community community = ownedBy(communityId, UUID.randomUUID(), null, null);
+        when(communityRepository.findByCommunityId(communityId)).thenReturn(Optional.of(community));
 
         service.delete(communityId);
 
-        verify(mediaServiceI).deleteAfterCommit(List.of());
+        assertThat(community.getDeletedAt()).isNotNull();
+        assertThat(community.getDeletedBy()).isEqualTo(USER_ID);
     }
 
     @Test

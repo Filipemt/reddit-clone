@@ -64,8 +64,9 @@ public class CommunityPurgeJob {
 
                 transactionTemplate.execute(status -> {
                     for (Community community : candidates) {
-                        mediaServiceI.deleteAfterCommit(mediaIdsOf(community));
+                        Collection<UUID> mediaIds = mediaIdsOf(community);
                         communityRepository.delete(community);
+                        mediaServiceI.deleteAfterCommit(mediaIds);
                     }
                     return null;
                 });
