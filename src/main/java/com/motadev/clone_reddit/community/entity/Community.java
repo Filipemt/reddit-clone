@@ -70,6 +70,9 @@ public class Community {
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
 
+    @Column(name = "member_count", nullable = false, updatable = false)
+    private Long memberCount = 0L;
+
     @OneToMany(
             mappedBy = "community",
             cascade = CascadeType.ALL,

@@ -29,3 +29,5 @@ databaseChangeLog:
       file: db/changelog/changes/20260928_rename_community_media_to_icon.xml
   - include:
       file: db/changelog/changes/20261005_add_community_soft_delete.xml
+  - include:
+      file: db/changelog/changes/20261008_create_community_membership.xml

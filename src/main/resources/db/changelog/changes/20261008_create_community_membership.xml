@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="create-tb-community-member-roles" author="motadev">
+        <createTable tableName="tb_community_member_roles">
+            <column name="role_id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(30)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_community_member_role_name"/>
+            </column>
+        </createTable>
+
+        <insert tableName="tb_community_member_roles">
+            <column name="role_id" valueNumeric="1"/>
+            <column name="name" value="MEMBER"/>
+        </insert>
+        <insert tableName="tb_community_member_roles">
+            <column name="role_id" valueNumeric="2"/>
+            <column name="name" value="MODERATOR"/>
+        </insert>
+
+        <sql dbms="postgresql">
+            SELECT setval(pg_get_serial_sequence('tb_community_member_roles', 'role_id'), (SELECT MAX(role_id) FROM tb_community_member_roles));
+        </sql>
+    </changeSet>
+
+    <changeSet id="create-tb-community-membership" author="motadev">
+        <createTable tableName="tb_community_membership">
+            <column name="community_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="role_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="joined_at" type="TIMESTAMP" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deactivated_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <addPrimaryKey tableName="tb_community_membership"
+                       columnNames="community_id, user_id"
+                       constraintName="pk_community_membership"/>
+
+        <addForeignKeyConstraint baseTableName="tb_community_membership"
+                                 baseColumnNames="community_id"
+                                 constraintName="fk_membership_community"
+                                 referencedTableName="tb_community"
+                                 referencedColumnNames="community_id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="tb_community_membership"
+                                 baseColumnNames="user_id"
+                                 constraintName="fk_membership_user"
+                                 referencedTableName="tb_users"
+                                 referencedColumnNames="user_id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="tb_community_membership"
+                                 baseColumnNames="role_id"
+                                 constraintName="fk_membership_role"
+                                 referencedTableName="tb_community_member_roles"
+                                 referencedColumnNames="role_id"/>
+    </changeSet>
+
+    <changeSet id="add-community-membership-indexes" author="motadev">
+        <sql dbms="postgresql">
+            CREATE INDEX idx_membership_user_active_joined
+                ON tb_community_membership (user_id, joined_at DESC)
+                WHERE deactivated_at IS NULL
+        </sql>
+    </changeSet>
+
+    <changeSet id="add-community-member-count" author="motadev">
+        <addColumn tableName="tb_community">
+            <column name="member_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="backfill-community-owner-membership" author="motadev">
+        <sql dbms="postgresql">
+            INSERT INTO tb_community_membership (community_id, user_id, role_id, joined_at)
+            SELECT c.community_id, c.owner_id, 2, c.created_at
+              FROM tb_community c
+             WHERE EXISTS (SELECT 1 FROM tb_users u WHERE u.user_id = c.owner_id)
+            ON CONFLICT (community_id, user_id) DO NOTHING
+        </sql>
+
+        <sql dbms="postgresql">
+            UPDATE tb_community c
+               SET member_count = (SELECT COUNT(*)
+                                     FROM tb_community_membership m
+                                    WHERE m.community_id = c.community_id
+                                      AND m.deactivated_at IS NULL)
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
