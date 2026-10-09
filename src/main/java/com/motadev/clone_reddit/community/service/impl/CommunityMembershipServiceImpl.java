@@ -95,6 +95,11 @@ public class CommunityMembershipServiceImpl implements CommunityMembershipServic
         return communityMembershipRepository.findActiveCommunityIds(userId, communityIds);
     }
 
+    @Override
+    public boolean isActiveMember(UUID communityId, UUID userId) {
+        return findJoinedCommunityIds(userId, Set.of(communityId)).contains(communityId);
+    }
+
     private Community findActiveOrThrow(UUID communityId) {
         return communityRepository.findByCommunityIdAndDeletedAtIsNull(communityId)
                 .orElseThrow(() -> new ResourceNotFoundException("Community not found."));

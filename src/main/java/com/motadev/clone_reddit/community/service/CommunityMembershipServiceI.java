@@ -12,4 +12,6 @@ public interface CommunityMembershipServiceI {
     void registerOwner(UUID communityId, UUID ownerId);
 
     Set<UUID> findJoinedCommunityIds(UUID userId, Collection<UUID> communityIds);
+
+    boolean isActiveMember(UUID communityId, UUID userId);
 }
