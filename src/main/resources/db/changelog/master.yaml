@@ -35,3 +35,5 @@ databaseChangeLog:
       file: db/changelog/changes/20261010_create_tb_outbox_event.xml
   - include:
       file: db/changelog/changes/20261011_create_tb_post.xml
+  - include:
+      file: db/changelog/changes/20261012_create_tb_comment.xml
