@@ -169,6 +169,8 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
   /posts               → Ciclo de vida de posts
   /comments            → Comentários aninhados
   /votes                → Upvote/downvote
+  /notification        → Inbox e consumer RabbitMQ
+  /search               → Busca ILIKE (baseline)
   /s3                  → Documentação da integração com object storage (upload, URL pré-assinada, IAM, CORS)
   /security            → Documentação de segurança (autenticação, JWT, chaves, etc.)
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
@@ -335,6 +337,9 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 | DELETE | `/comments/{commentId}` | Soft delete (autor ou `ADMIN`) |
 | PUT | `/posts/{postId}/vote` | Upvote/downvote/clear (`value` -1\|0\|1) |
 | PUT | `/comments/{commentId}/vote` | Upvote/downvote/clear (`value` -1\|0\|1) |
+| GET | `/search` | Busca ILIKE em posts, comunidades e usuários (`q`) |
+| GET | `/notifications` | Inbox do usuário |
+| PUT | `/notifications/{id}/read` | Marca notificação como lida |
 
 ### Testes
 
