@@ -123,7 +123,7 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 
 `media.upload.rollback_failed` é o único dos eventos de upload que indica defeito real de compensação — os outros são situações esperadas: uma por decisão de segurança (`rollback_unknown`), outra por ausência de transação (`no_active_transaction`).
 
-### 4.9 Comunidade — `community/logging/CommunityEventLog.java` (chamado por `CommunityServiceImpl` e `CommunityPurgeJob`)
+### 4.9 Comunidade — `community/logging/CommunityEventLog.java` (chamado por `CommunityServiceImpl`, `CommunityPurgeJob`, `CommunityMembershipServiceImpl` e `CommunityAccountDeletionHandler`)
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
@@ -134,6 +134,14 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `community.purge.lock_not_acquired` | DEBUG | `advisoryLockId` | Outra instância detém o advisory lock; o job de purge pula a execução |
 | `community.purge.success` | INFO | `purgedCount`, `retentionDays` | Comunidades soft-deleted além da retenção foram purgadas fisicamente |
 | `community.purge.nothing` | DEBUG | `retentionDays` | Lock adquirido, mas nenhuma comunidade elegível para purge |
+| `community.membership.join.success` | INFO | `communityId`, `userId` | Usuário entrou na comunidade; `member_count` incrementado |
+| `community.membership.join.already_member` | DEBUG | `communityId`, `userId` | Entrada idempotente: o usuário já era membro, nada mudou |
+| `community.membership.join.forbidden` | WARN | `communityId`, `userId`, `type` | Tentativa de entrar em comunidade que não aceita entrada direta (`PRIVATE`, 403) |
+| `community.membership.leave.success` | INFO | `communityId`, `userId` | Usuário saiu da comunidade; `member_count` decrementado |
+| `community.membership.leave.not_member` | DEBUG | `communityId`, `userId` | Saída idempotente: o usuário não era membro, nada mudou |
+| `community.membership.leave.owner_forbidden` | WARN | `communityId`, `userId` | O dono tentou sair da própria comunidade (403) |
+| `community.membership.deactivated` | INFO | `userId`, `membershipCount` | Exclusão de conta: inscrições ativas desativadas e contadores decrementados |
+| `community.delete.owner_account_deleted` | INFO | `userId`, `communityCount` | Exclusão de conta: comunidades das quais o usuário era dono foram removidas (soft delete) |
 
 ## 5. Regras de dados sensíveis (resumo)
 
