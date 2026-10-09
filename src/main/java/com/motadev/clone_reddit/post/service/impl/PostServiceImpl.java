@@ -121,6 +121,21 @@ public class PostServiceImpl implements PostServiceI {
 
     @Override
     @Transactional
+    public UUID requireActiveAuthorId(UUID postId) {
+        return findActiveOrThrow(postId).getAuthorId();
+    }
+
+    @Override
+    @Transactional
+    public void adjustCommentCount(UUID postId, long delta) {
+        int updated = postRepository.adjustCommentCount(postId, delta);
+        if (updated == 0) {
+            throw new ResourceNotFoundException("Post not found.");
+        }
+    }
+
+    @Override
+    @Transactional
     public void delete(UUID postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found."));
