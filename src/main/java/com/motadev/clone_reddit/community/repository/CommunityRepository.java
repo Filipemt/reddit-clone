@@ -79,4 +79,26 @@ public interface CommunityRepository extends JpaRepository<Community, UUID> {
                AND deleted_at IS NULL
             """, nativeQuery = true)
     int softDeleteAllOwnedBy(@Param("ownerId") UUID ownerId, @Param("deletedAt") LocalDateTime deletedAt);
+
+    @Query(value = """
+            SELECT * FROM tb_community
+             WHERE deleted_at IS NULL
+               AND (
+                    name ILIKE CONCAT('%', :q, '%')
+                 OR slug ILIKE CONCAT('%', :q, '%')
+                 OR description ILIKE CONCAT('%', :q, '%')
+               )
+             ORDER BY created_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM tb_community
+             WHERE deleted_at IS NULL
+               AND (
+                    name ILIKE CONCAT('%', :q, '%')
+                 OR slug ILIKE CONCAT('%', :q, '%')
+                 OR description ILIKE CONCAT('%', :q, '%')
+               )
+            """,
+            nativeQuery = true)
+    Page<Community> searchActiveIlike(@Param("q") String q, Pageable pageable);
 }

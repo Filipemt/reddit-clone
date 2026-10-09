@@ -39,6 +39,26 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
             """, nativeQuery = true)
     int updateHotScore(@Param("postId") UUID postId, @Param("hotScore") double hotScore);
 
+    @Query(value = """
+            SELECT * FROM tb_post
+             WHERE deleted_at IS NULL
+               AND (
+                    title ILIKE CONCAT('%', :q, '%')
+                 OR body ILIKE CONCAT('%', :q, '%')
+               )
+             ORDER BY created_at DESC
+            """,
+            countQuery = """
+            SELECT COUNT(*) FROM tb_post
+             WHERE deleted_at IS NULL
+               AND (
+                    title ILIKE CONCAT('%', :q, '%')
+                 OR body ILIKE CONCAT('%', :q, '%')
+               )
+            """,
+            nativeQuery = true)
+    Page<Post> searchActiveIlike(@Param("q") String q, Pageable pageable);
+
     @Modifying
     @Query(value = """
             UPDATE tb_post
