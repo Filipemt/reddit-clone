@@ -18,3 +18,5 @@ app:
       batch-size: 100
       enabled: false
       advisory-lock-id: 123456789
+      cron: "0 0 3 * * SUN"
+      zone: America/Sao_Paulo

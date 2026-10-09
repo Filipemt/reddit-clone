@@ -5,6 +5,7 @@ import com.motadev.clone_reddit.community.entity.Community;
 import com.motadev.clone_reddit.community.logging.CommunityEventLog;
 import com.motadev.clone_reddit.community.repository.CommunityRepository;
 import com.motadev.clone_reddit.media.service.MediaServiceI;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -41,7 +42,7 @@ public class CommunityPurgeJob {
         this.communityEventLog = communityEventLog;
     }
 
-    @Scheduled(fixedDelayString = "60000")
+    @Scheduled(cron = "${app.purge.communities.cron}", zone = "${app.purge.communities.zone}")
     public void purge() {
         if (!properties.enabled()) {
             return;
@@ -57,7 +58,7 @@ public class CommunityPurgeJob {
             LocalDateTime cutoff = LocalDateTime.now().minusDays(properties.retentionDays());
             while (true) {
                 List<Community> candidates = communityRepository.findCandidatesForPurge(cutoff,
-                        org.springframework.data.domain.PageRequest.of(0, properties.batchSize()));
+                        PageRequest.of(0, properties.batchSize()));
                 if (candidates.isEmpty()) {
                     break;
                 }
