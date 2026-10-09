@@ -1,5 +1,6 @@
 package com.motadev.clone_reddit.community.logging;
 
+import com.motadev.clone_reddit.community.service.impl.CommunityMembershipServiceImpl;
 import com.motadev.clone_reddit.community.service.impl.CommunityPurgeJob;
 import com.motadev.clone_reddit.community.service.impl.CommunityServiceImpl;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ public class CommunityEventLog {
 
     private final Logger communityLog = LoggerFactory.getLogger(CommunityServiceImpl.class);
     private final Logger purgeLog = LoggerFactory.getLogger(CommunityPurgeJob.class);
+    private final Logger membershipLog = LoggerFactory.getLogger(CommunityMembershipServiceImpl.class);
 
     public CommunityEventLog() {
     }
@@ -78,6 +80,61 @@ public class CommunityEventLog {
                 .addKeyValue("event", "community.purge.nothing")
                 .addKeyValue("retentionDays", retentionDays)
                 .setMessage("No communities eligible for purge")
+                .log();
+    }
+
+    public void membershipJoinSuccess(UUID communityId, UUID userId) {
+        membershipLog.atInfo()
+                .addKeyValue("event", "community.membership.join.success")
+                .addKeyValue("communityId", communityId)
+                .addKeyValue("userId", userId)
+                .setMessage("User joined the community")
+                .log();
+    }
+
+    public void membershipJoinAlreadyMember(UUID communityId, UUID userId) {
+        membershipLog.atDebug()
+                .addKeyValue("event", "community.membership.join.already_member")
+                .addKeyValue("communityId", communityId)
+                .addKeyValue("userId", userId)
+                .setMessage("User is already a member; nothing to do")
+                .log();
+    }
+
+    public void membershipJoinForbidden(UUID communityId, UUID userId, String type) {
+        membershipLog.atWarn()
+                .addKeyValue("event", "community.membership.join.forbidden")
+                .addKeyValue("communityId", communityId)
+                .addKeyValue("userId", userId)
+                .addKeyValue("type", type)
+                .setMessage("Attempt to join a community that does not accept direct membership")
+                .log();
+    }
+
+    public void membershipLeaveSuccess(UUID communityId, UUID userId) {
+        membershipLog.atInfo()
+                .addKeyValue("event", "community.membership.leave.success")
+                .addKeyValue("communityId", communityId)
+                .addKeyValue("userId", userId)
+                .setMessage("User left the community")
+                .log();
+    }
+
+    public void membershipLeaveNotMember(UUID communityId, UUID userId) {
+        membershipLog.atDebug()
+                .addKeyValue("event", "community.membership.leave.not_member")
+                .addKeyValue("communityId", communityId)
+                .addKeyValue("userId", userId)
+                .setMessage("User is not a member; nothing to do")
+                .log();
+    }
+
+    public void membershipLeaveOwnerForbidden(UUID communityId, UUID userId) {
+        membershipLog.atWarn()
+                .addKeyValue("event", "community.membership.leave.owner_forbidden")
+                .addKeyValue("communityId", communityId)
+                .addKeyValue("userId", userId)
+                .setMessage("Community owner attempted to leave the community")
                 .log();
     }
 }

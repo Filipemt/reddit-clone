@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.community.controller;
 
 import com.motadev.clone_reddit.community.dtos.request.CreateCommunityRequestDTO;
 import com.motadev.clone_reddit.community.dtos.response.CommunityResponseDTO;
+import com.motadev.clone_reddit.community.service.CommunityMembershipServiceI;
 import com.motadev.clone_reddit.community.service.CommunityServiceI;
 import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
 import jakarta.validation.Valid;
@@ -19,9 +20,12 @@ import java.util.UUID;
 public class CommunityController {
 
     private final CommunityServiceI communityServiceI;
+    private final CommunityMembershipServiceI communityMembershipServiceI;
 
-    public CommunityController(CommunityServiceI communityServiceI) {
+    public CommunityController(CommunityServiceI communityServiceI,
+                               CommunityMembershipServiceI communityMembershipServiceI) {
         this.communityServiceI = communityServiceI;
+        this.communityMembershipServiceI = communityMembershipServiceI;
     }
 
     @PostMapping(consumes = "multipart/form-data")
@@ -82,6 +86,18 @@ public class CommunityController {
     @DeleteMapping("/{communityId}")
     public ResponseEntity<Void> delete(@PathVariable UUID communityId) {
         communityServiceI.delete(communityId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{communityId}/membership")
+    public ResponseEntity<Void> join(@PathVariable UUID communityId) {
+        communityMembershipServiceI.join(communityId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{communityId}/membership")
+    public ResponseEntity<Void> leave(@PathVariable UUID communityId) {
+        communityMembershipServiceI.leave(communityId);
         return ResponseEntity.noContent().build();
     }
 }

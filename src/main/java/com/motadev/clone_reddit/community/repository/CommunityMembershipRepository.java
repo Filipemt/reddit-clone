@@ -1,0 +1,37 @@
+package com.motadev.clone_reddit.community.repository;
+
+import com.motadev.clone_reddit.community.entity.CommunityMembership;
+import com.motadev.clone_reddit.community.entity.CommunityMembershipId;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.UUID;
+
+@Repository
+public interface CommunityMembershipRepository extends JpaRepository<CommunityMembership, CommunityMembershipId> {
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO tb_community_membership (community_id, user_id, role_id, joined_at)
+            VALUES (:communityId, :userId, :roleId, now())
+            ON CONFLICT (community_id, user_id) DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(@Param("communityId") UUID communityId,
+                       @Param("userId") UUID userId,
+                       @Param("roleId") Long roleId);
+
+    @Modifying
+    @Query(value = """
+            DELETE FROM tb_community_membership
+             WHERE community_id = :communityId
+               AND user_id = :userId
+               AND role_id = :roleId
+               AND deactivated_at IS NULL
+            """, nativeQuery = true)
+    int deleteActive(@Param("communityId") UUID communityId,
+                     @Param("userId") UUID userId,
+                     @Param("roleId") Long roleId);
+}
