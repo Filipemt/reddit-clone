@@ -69,7 +69,7 @@ Principais características do produto original que servem de referência para e
 | Mídia | Metadados de arquivos em object storage (bucket + object key) | ✅ Modelada e implementada |
 | Refresh token | Sessão do usuário (rotação, revogação, uso único) | ✅ Modelada e implementada |
 | Post | Pertence a exatamente uma comunidade | 🟡 Create/list/get/soft-delete; votos/Hot e purge de mídia ainda não |
-| Comentário | Auto-relacionamento (resposta aninhada) | ⬜ Não iniciada |
+| Comentário | Auto-relacionamento (resposta aninhada) | 🟡 Create/tree/soft-delete; votos ainda não |
 | Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | ⬜ Não iniciada |
 | Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | 🟡 Entrar, sair e listar implementados; promoção de moderadores não iniciada |
 | Ban | Usuário banido de uma comunidade específica | ⬜ Não iniciada |
@@ -166,6 +166,8 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
   /communities         → Ciclo de vida das comunidades (soft delete, purge) e inscrição (membership)
   /logging             → Convenções de logs estruturados (ECS) e catálogo de eventos
   /messaging           → RabbitMQ (topologia, compose, variáveis)
+  /posts               → Ciclo de vida de posts
+  /comments            → Comentários aninhados
   /s3                  → Documentação da integração com object storage (upload, URL pré-assinada, IAM, CORS)
   /security            → Documentação de segurança (autenticação, JWT, chaves, etc.)
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
@@ -177,7 +179,8 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
   /user                → Cadastro, perfil, papéis e exclusão de conta
   /community           → Comunidades, inscrições, regras e referências (tipo/status/tópico/papel de membro)
   /media               → Upload para object storage e URLs pré-assinadas
-  /messaging           → Topologia RabbitMQ e (futuro) outbox/publisher
+  /messaging           → Topologia RabbitMQ e outbox/publisher
+  /post                → Posts (criação, listagem, soft delete)
   /shared              → Configuração, tratamento global de exceções, segurança e extras transversais
 README.md              → Este documento
 ```
@@ -322,6 +325,13 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 | GET | `/communities/me` | Comunidades que o usuário segue, da inscrição mais recente para a mais antiga |
 | PUT | `/communities/{id}/membership` | Entrar na comunidade (idempotente) |
 | DELETE | `/communities/{id}/membership` | Sair da comunidade (idempotente) |
+| POST | `/communities/{id}/posts` | Criar post (`multipart/form-data`, mídia opcional; membro ativo) |
+| GET | `/communities/{id}/posts` | Listagem paginada de posts ativos (mais novos primeiro) |
+| GET | `/posts/{postId}` | Detalhe do post (`404` se removido) |
+| DELETE | `/posts/{postId}` | Soft delete (autor ou `ADMIN`) |
+| POST | `/posts/{postId}/comments` | Criar comentário ou resposta (`parentId` opcional) |
+| GET | `/posts/{postId}/comments` | Árvore de comentários (profundidade ilimitada) |
+| DELETE | `/comments/{commentId}` | Soft delete (autor ou `ADMIN`) |
 
 ### Testes
 
