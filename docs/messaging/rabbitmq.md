@@ -1,36 +1,36 @@
-# RabbitMQ integration
+# Integração com RabbitMQ
 
-Broker used for asynchronous domain events (notifications and future consumers). Topology is declared in Java; nothing needs to be created manually in the Management UI for local development.
+Broker usado para eventos de domínio assíncronos (notificações e consumidores futuros). A topologia é declarada em Java; no desenvolvimento local não é necessário criar nada manualmente na Management UI.
 
-## Local broker
+## Broker local
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d rabbitmq
 ```
 
-| Item | Default |
+| Item | Padrão |
 |---|---|
 | AMQP | `localhost:5672` |
 | Management UI | http://localhost:15672 |
-| User / password | `reddit` / `reddit` (override with `RABBITMQ_USER` / `RABBITMQ_PASSWORD`) |
+| Usuário / senha | `reddit` / `reddit` (sobrescreva com `RABBITMQ_USER` / `RABBITMQ_PASSWORD`) |
 
-Spring connects via `spring.rabbitmq.*` (`RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`).
+O Spring conecta via `spring.rabbitmq.*` (`RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`).
 
-## Topology (code)
+## Topologia (código)
 
-Declared by `RabbitMqTopologyConfig` on application startup (`RabbitAdmin`):
+Declarada por `RabbitMqTopologyConfig` na subida da aplicação (`RabbitAdmin`):
 
-| Resource | Name | Notes |
+| Recurso | Nome | Observações |
 |---|---|---|
-| Topic exchange | `clone-reddit.events` | Durable |
-| Queue | `notification.events` | Durable; DLX back to the same exchange |
-| Binding | `notification.#` | Routes notification.* events to the queue |
-| DLQ | `notification.events.dlq` | Bound with `notification.dlq` |
+| Topic exchange | `clone-reddit.events` | Durável |
+| Fila | `notification.events` | Durável; DLX de volta para o mesmo exchange |
+| Binding | `notification.#` | Encaminha eventos `notification.*` para a fila |
+| DLQ | `notification.events.dlq` | Ligada com a routing key `notification.dlq` |
 
-Names are configurable under `app.rabbitmq.*` in `application.yaml`.
+Os nomes são configuráveis em `app.rabbitmq.*` no `application.yaml`.
 
-JSON payloads use `JacksonJsonMessageConverter`.
+Os payloads JSON usam `JacksonJsonMessageConverter`.
 
-## Tests
+## Testes
 
-`TestcontainersConfiguration` starts `RabbitMQContainer` with `@ServiceConnection`, so `@SpringBootTest` suites get a real broker without relying on the compose instance.
+`TestcontainersConfiguration` sobe um `RabbitMQContainer` com `@ServiceConnection`, então as suítes `@SpringBootTest` usam um broker real sem depender da instância do compose.
