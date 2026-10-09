@@ -37,3 +37,5 @@ build/
 
 app.key
 app.pub
+
+.cursor
