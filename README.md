@@ -71,7 +71,7 @@ Principais características do produto original que servem de referência para e
 | Post | Pertence a exatamente uma comunidade | ⬜ Não iniciada |
 | Comentário | Auto-relacionamento (resposta aninhada) | ⬜ Não iniciada |
 | Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | ⬜ Não iniciada |
-| Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | ⬜ Não iniciada |
+| Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | 🟡 Entrar, sair e listar implementados; promoção de moderadores não iniciada |
 | Ban | Usuário banido de uma comunidade específica | ⬜ Não iniciada |
 | Notificação | Evento direcionado a um usuário (resposta, menção, upvote) | ⬜ Não iniciada |
 | Tag *(extensão de produto, fora do Reddit original)* | Mecanismo de descoberta transversal a comunidades — relação N:N com posts | ⬜ Não iniciada |
@@ -106,7 +106,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 
 | Tipo de dado | Banco (candidato) | Motivo | Situação |
 |---|---|---|---|
-| Domínio central (usuário, comunidade, post, membership, ban, voto) | Relacional (PostgreSQL) | Integridade referencial, transações, relacionamento bem definido | 🟡 Parcial (usuário, comunidade) |
+| Domínio central (usuário, comunidade, post, membership, ban, voto) | Relacional (PostgreSQL) | Integridade referencial, transações, relacionamento bem definido | 🟡 Parcial (usuário, comunidade, membership) |
 | Comentários aninhados | Relacional (fase inicial) → avaliação futura de documento (MongoDB) ? | Começa simples (adjacency list); migração planejada como exercício de evolução de arquitetura | ⬜ |
 | Cache de feed, contadores, rate limit | Chave-valor (Redis) | Leitura rápida, dados voláteis, alta frequência de acesso | ⬜ |
 | Busca (posts, comunidades, usuários) | Motor de busca (Elasticsearch) ? | Busca textual otimizada, impraticável em SQL puro | ⬜ |
@@ -253,7 +253,7 @@ Os testes de integração sobem o PostgreSQL via Testcontainers. No macOS com Co
 
 **Fase: autenticação completa + modelagem inicial do domínio (comunidades) + camada de mídia em S3.**
 
-Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de negócio (`auth`, `user`, `community`, `media`, `shared`). Schema gerenciado por **Liquibase** (14 changelogs), **PostgreSQL** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
+Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de negócio (`auth`, `user`, `community`, `media`, `shared`). Schema gerenciado por **Liquibase** (16 changelogs), **PostgreSQL** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
 ### O que já funciona
 
@@ -270,6 +270,7 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 - Tabelas de referência seedadas: 3 tipos, 3 status e 20 tópicos; criação com `409 Conflict` em duplicidade.
 - Dono extraído do JWT via `AuthenticatedUserProvider` — o serviço não recebe o usuário do controller.
 - Entidade `CommunityRules` mapeada (`position`, título, descrição) com cascade/`orphanRemoval`.
+- **Membership**: entrar e sair de comunidades de forma idempotente, com `member_count` alterado só por `UPDATE` atômico; o dono entra como moderador na criação; respostas trazem `memberCount` e `isMember`. A exclusão de conta desativa as inscrições e remove as comunidades do dono, via interface `UserAccountDeletionHandler` (sem ciclo entre `user` e `community`). Ver [docs/communities/membership.md](docs/communities/membership.md).
 
 **Mídia** (`media`)
 - `S3Client` para escrita e `S3Presigner` para leitura; `tb_media` guarda bucket, object key, content type e tamanho.
@@ -287,6 +288,9 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 | GET | `/users/{userId}` | Perfil do usuário |
 | DELETE | `/users/me` | Exclusão de conta (soft delete) |
 | POST | `/communities` | Criação de comunidade (`multipart/form-data`, ícone e banner opcionais) |
+| GET | `/communities/me` | Comunidades que o usuário segue, da inscrição mais recente para a mais antiga |
+| PUT | `/communities/{id}/membership` | Entrar na comunidade (idempotente) |
+| DELETE | `/communities/{id}/membership` | Sair da comunidade (idempotente) |
 
 ### Testes
 
@@ -300,12 +304,12 @@ Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, a
 - **Sem endpoint de leitura de comunidade:** só existe a criação. Listagem, busca, regras, posts e moderação ainda não foram implementadas.
 - **Sem operação de delete de mídia:** o `deleteObject` existe apenas como compensação interna; não há como remover uma mídia pela API, e linhas em `tb_media` e objetos no bucket só crescem.
 - **`findUserOrThrow` não filtra `isActive`:** um usuário desativado ainda pode ser lido por id.
-- **Sem job de purga de refresh tokens** expirados/revogados; sem revogação de access token antes do `exp`.
+- **Sem job de purga de refresh tokens** expirados/revogados; sem revogação de access token antes do `exp`. O filtro de JWT também não verifica `isActive`: após excluir a conta, o usuário ainda age (por exemplo, entra em comunidades) até o token expirar.
 - **Sem cache de URL pré-assinada:** uma nova URL é assinada a cada leitura.
 
 ### Próximos passos planejados
 
-Leitura e busca de comunidades, membership/moderadores (RBAC contextual), posts, comentários aninhados e o sistema de votos — a parte do projeto que traz concorrência, cache e mensageria.
+Leitura e busca de comunidades, promoção de moderadores (RBAC contextual), posts, comentários aninhados e o sistema de votos — a parte do projeto que traz concorrência, cache e mensageria.
 
 ### Stack
 
