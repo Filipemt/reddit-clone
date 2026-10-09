@@ -16,12 +16,11 @@ import com.motadev.clone_reddit.shared.dtos.response.PagedResponseDTO;
 import com.motadev.clone_reddit.shared.exception.ForbiddenException;
 import com.motadev.clone_reddit.shared.exception.ResourceNotFoundException;
 import com.motadev.clone_reddit.shared.security.AuthenticatedUserProvider;
+import com.motadev.clone_reddit.shared.web.Pageables;
 import com.motadev.clone_reddit.user.entity.enums.RoleValues;
 import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,9 +32,6 @@ import java.util.UUID;
 
 @Service
 public class PostServiceImpl implements PostServiceI {
-
-    private static final Sort SORT_NEWEST_FIRST = Sort.by(Sort.Direction.DESC, "createdAt");
-    private static final int FALLBACK_PAGE_SIZE = 20;
 
     private final PostRepository postRepository;
     private final PostConverter postConverter;
@@ -106,7 +102,7 @@ public class PostServiceImpl implements PostServiceI {
 
         Page<Post> page = postRepository.findByCommunityIdAndDeletedAtIsNull(
                 communityId,
-                withSortNewestFirst(pageable)
+                Pageables.newestByCreatedAt(pageable)
         );
 
         Map<UUID, String> urls = mediaServiceI.getUrls(
@@ -187,12 +183,5 @@ public class PostServiceImpl implements PostServiceI {
             return Map.of();
         }
         return mediaServiceI.getUrls(List.of(mediaId));
-    }
-
-    private static Pageable withSortNewestFirst(Pageable pageable) {
-        if (!pageable.isPaged()) {
-            return PageRequest.of(0, FALLBACK_PAGE_SIZE, SORT_NEWEST_FIRST);
-        }
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), SORT_NEWEST_FIRST);
     }
 }
