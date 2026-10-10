@@ -17,4 +17,8 @@ public interface PostServiceI {
     PagedResponseDTO<PostResponseDTO> listByCommunity(UUID communityId, Pageable pageable);
 
     void delete(UUID postId);
+
+    UUID requireActiveAuthorId(UUID postId);
+
+    void adjustCommentCount(UUID postId, long delta);
 }

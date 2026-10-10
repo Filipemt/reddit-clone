@@ -155,7 +155,17 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `post.delete.already_deleted` | DEBUG | `postId`, `userId` | Soft delete idempotente |
 | `post.delete.forbidden` | WARN | `postId`, `userId` | Quem não é autor/admin tenta apagar (403) |
 
-### 4.11 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
+### 4.11 Comment — `comment/logging/CommentEventLog.java` (chamado por `CommentServiceImpl`)
+
+| Evento | Nível | Campos | Quando ocorre |
+|---|---|---|---|
+| `comment.create.success` | INFO | `commentId`, `postId`, `authorId`, `parentId` | Comentário criado (raiz ou resposta) |
+| `comment.create.parent_mismatch` | WARN | `postId`, `parentId` | `parentId` pertence a outro post |
+| `comment.delete.success` | INFO | `commentId`, `userId`, `isAuthor` | Soft delete concluído |
+| `comment.delete.already_deleted` | DEBUG | `commentId`, `userId` | Soft delete idempotente |
+| `comment.delete.forbidden` | WARN | `commentId`, `userId` | Quem não é autor/admin tenta apagar |
+
+### 4.12 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
