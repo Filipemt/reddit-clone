@@ -144,7 +144,18 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `community.membership.deactivated` | INFO | `userId`, `membershipCount` | Exclusão de conta: inscrições ativas desativadas e contadores decrementados |
 | `community.delete.owner_account_deleted` | INFO | `userId`, `communityCount` | Exclusão de conta: comunidades das quais o usuário era dono foram removidas (soft delete) |
 
-### 4.10 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
+### 4.10 Post — `post/logging/PostEventLog.java` (chamado por `PostServiceImpl`)
+
+| Evento | Nível | Campos | Quando ocorre |
+|---|---|---|---|
+| `post.create.success` | INFO | `postId`, `communityId`, `authorId`, `hasMedia` | Post criado com sucesso |
+| `post.create.forbidden` | WARN | `communityId`, `userId` | Usuário não membro tenta criar post (403) |
+| `post.get.success` | DEBUG | `postId` | Leitura de post ativo |
+| `post.delete.success` | INFO | `postId`, `userId`, `isAuthor` | Soft delete concluído |
+| `post.delete.already_deleted` | DEBUG | `postId`, `userId` | Soft delete idempotente |
+| `post.delete.forbidden` | WARN | `postId`, `userId` | Quem não é autor/admin tenta apagar (403) |
+
+### 4.11 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
