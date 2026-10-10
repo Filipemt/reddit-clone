@@ -90,6 +90,18 @@ public class UserServiceImpl implements UserServiceI {
     }
 
     @Override
+    @Transactional
+    public void adjustKarma(UUID userId, long delta) {
+        if (delta == 0) {
+            return;
+        }
+        int updated = userRepository.adjustKarma(userId, delta);
+        if (updated == 0) {
+            throw new ResourceNotFoundException("User not found.");
+        }
+    }
+
+    @Override
     public Optional<UserAuthInfo> validateCredentials(String username, String rawPassword) {
         return userRepository.findByUsernameAndIsActiveTrue(username)
                 .filter(user -> user.isLoginCorrect(rawPassword, passwordEncoder))
