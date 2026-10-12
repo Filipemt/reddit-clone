@@ -19,11 +19,12 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
     Page<Post> findByCommunityIdAndDeletedAtIsNull(UUID communityId, Pageable pageable);
 
     @Query("""
-            SELECT p FROM Post p
-             WHERE p.communityId = :communityId
-               AND p.deletedAt IS NULL
-               AND (:cutoff IS NULL OR p.createdAt >= :cutoff)
-            """)
+        SELECT p FROM Post p
+         WHERE p.communityId = :communityId
+           AND p.deletedAt IS NULL
+           AND (CAST(:cutoff AS timestamp) IS NULL
+                OR p.createdAt >= :cutoff)
+        """)
     Page<Post> findActiveByCommunityAndCreatedAtAfter(
             @Param("communityId") UUID communityId,
             @Param("cutoff") LocalDateTime cutoff,
