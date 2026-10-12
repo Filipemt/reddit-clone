@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="create-tb-vote" author="motadev">
+        <createTable tableName="tb_vote">
+            <column name="vote_id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="target_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="target_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="value" type="SMALLINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="now()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="tb_vote"
+                             columnNames="user_id, target_type, target_id"
+                             constraintName="uq_vote_user_target"/>
+
+        <sql dbms="postgresql">
+            CREATE INDEX idx_vote_target ON tb_vote (target_type, target_id);
+            ALTER TABLE tb_vote ADD CONSTRAINT ck_vote_value CHECK (value IN (-1, 1));
+        </sql>
+    </changeSet>
+</databaseChangeLog>

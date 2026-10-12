@@ -21,4 +21,6 @@ public interface PostServiceI {
     UUID requireActiveAuthorId(UUID postId);
 
     void adjustCommentCount(UUID postId, long delta);
+
+    UUID applyVoteDelta(UUID postId, long scoreDelta, long upDelta, long downDelta);
 }

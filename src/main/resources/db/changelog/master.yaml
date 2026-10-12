@@ -37,3 +37,5 @@ databaseChangeLog:
       file: db/changelog/changes/20261011_create_tb_post.xml
   - include:
       file: db/changelog/changes/20261012_create_tb_comment.xml
+  - include:
+      file: db/changelog/changes/20261013_create_tb_vote.xml

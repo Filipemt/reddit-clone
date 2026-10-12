@@ -70,7 +70,7 @@ Principais características do produto original que servem de referência para e
 | Refresh token | Sessão do usuário (rotação, revogação, uso único) | ✅ Modelada e implementada |
 | Post | Pertence a exatamente uma comunidade | 🟡 Create/list/get/soft-delete; votos/Hot e purge de mídia ainda não |
 | Comentário | Auto-relacionamento (resposta aninhada) | 🟡 Create/tree/soft-delete; votos ainda não |
-| Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | ⬜ Não iniciada |
+| Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | 🟡 Up/down/clear + karma; Hot ranking ainda não |
 | Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | 🟡 Entrar, sair e listar implementados; promoção de moderadores não iniciada |
 | Ban | Usuário banido de uma comunidade específica | ⬜ Não iniciada |
 | Notificação | Evento direcionado a um usuário (resposta, menção, upvote) | ⬜ Não iniciada |
@@ -168,6 +168,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
   /messaging           → RabbitMQ (topologia, compose, variáveis)
   /posts               → Ciclo de vida de posts
   /comments            → Comentários aninhados
+  /votes                → Upvote/downvote
   /s3                  → Documentação da integração com object storage (upload, URL pré-assinada, IAM, CORS)
   /security            → Documentação de segurança (autenticação, JWT, chaves, etc.)
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
@@ -332,6 +333,8 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio de
 | POST | `/posts/{postId}/comments` | Criar comentário ou resposta (`parentId` opcional) |
 | GET | `/posts/{postId}/comments` | Árvore de comentários (profundidade ilimitada) |
 | DELETE | `/comments/{commentId}` | Soft delete (autor ou `ADMIN`) |
+| PUT | `/posts/{postId}/vote` | Upvote/downvote/clear (`value` -1\|0\|1) |
+| PUT | `/comments/{commentId}/vote` | Upvote/downvote/clear (`value` -1\|0\|1) |
 
 ### Testes
 

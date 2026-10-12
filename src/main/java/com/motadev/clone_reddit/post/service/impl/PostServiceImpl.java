@@ -132,6 +132,17 @@ public class PostServiceImpl implements PostServiceI {
 
     @Override
     @Transactional
+    public UUID applyVoteDelta(UUID postId, long scoreDelta, long upDelta, long downDelta) {
+        Post post = findActiveOrThrow(postId);
+        int updated = postRepository.applyVoteDelta(postId, scoreDelta, upDelta, downDelta);
+        if (updated == 0) {
+            throw new ResourceNotFoundException("Post not found.");
+        }
+        return post.getAuthorId();
+    }
+
+    @Override
+    @Transactional
     public void delete(UUID postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post not found."));

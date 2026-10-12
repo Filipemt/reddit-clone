@@ -104,6 +104,26 @@ public class CommentServiceImpl implements CommentServiceI {
 
     @Override
     @Transactional
+    public UUID applyVoteDelta(UUID commentId, long scoreDelta, long upDelta, long downDelta) {
+        Comment comment = commentRepository.findByCommentIdAndDeletedAtIsNull(commentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Comment not found."));
+        int updated = commentRepository.applyVoteDelta(commentId, scoreDelta, upDelta, downDelta);
+        if (updated == 0) {
+            throw new ResourceNotFoundException("Comment not found.");
+        }
+        return comment.getAuthorId();
+    }
+
+    @Override
+    @Transactional
+    public long requireActiveScore(UUID commentId) {
+        return commentRepository.findByCommentIdAndDeletedAtIsNull(commentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Comment not found."))
+                .getScore();
+    }
+
+    @Override
+    @Transactional
     public void delete(UUID commentId) {
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment not found."));
