@@ -14,7 +14,12 @@ public interface PostServiceI {
 
     PostResponseDTO getById(UUID postId);
 
-    PagedResponseDTO<PostResponseDTO> listByCommunity(UUID communityId, Pageable pageable);
+    PagedResponseDTO<PostResponseDTO> listByCommunity(
+            UUID communityId,
+            Pageable pageable,
+            String sort,
+            String period
+    );
 
     void delete(UUID postId);
 
