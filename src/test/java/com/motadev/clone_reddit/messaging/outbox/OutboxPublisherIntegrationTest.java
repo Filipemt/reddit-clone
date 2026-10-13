@@ -24,7 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@TestPropertySource(properties = "app.outbox.publisher.enabled=true")
+@TestPropertySource(properties = {
+        "app.outbox.publisher.enabled=true",
+        "spring.rabbitmq.listener.simple.auto-startup=false"
+})
 @Import(TestcontainersConfiguration.class)
 class OutboxPublisherIntegrationTest {
 
