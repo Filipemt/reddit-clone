@@ -22,9 +22,6 @@
             <column name="payload" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="read_at" type="TIMESTAMP">
-                <constraints nullable="true"/>
-            </column>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="now()">
                 <constraints nullable="false"/>
             </column>

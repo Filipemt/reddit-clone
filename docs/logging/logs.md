@@ -179,7 +179,6 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `notification.create.success` | INFO | `notificationId`, `recipientId`, `type`, `eventId` | Evento consumido e persistido |
 | `notification.create.duplicate` | DEBUG | `eventId` | Reentrega ignorada (`event_id` único) |
 | `notification.consume.failed` | ERROR | `eventId`, `type` | Falha no consumer (mensagem vai para retry/DLQ) |
-| `notification.read.success` | INFO | `notificationId`, `userId` | Inbox item marcado como lido |
 
 ### 4.13 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
 
