@@ -18,7 +18,9 @@ export function authHeaders(token) {
 }
 
 export function uniqueSuffix() {
-  return `${Date.now()}_${__VU}_${__ITER}`;
+  const vu = typeof __VU !== 'undefined' ? __VU : 0;
+  const iter = typeof __ITER !== 'undefined' ? __ITER : 0;
+  return `${Date.now()}_${vu}_${iter}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function registerUser(username, password, email) {
