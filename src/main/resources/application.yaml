@@ -85,7 +85,7 @@ app:
       batch-size: 50
       advisory-lock-id: 987654321
       max-attempts: 5
-      fixed-delay-ms: 2000
+      fixed-delay-ms: 86400000
       initial-delay-ms: 5000
   purge:
     communities:
