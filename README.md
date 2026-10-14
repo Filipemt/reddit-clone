@@ -345,6 +345,8 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 
 Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação, os serviços de usuário, mídia e comunidade, e a declaração da topologia RabbitMQ (Testcontainers + PostgreSQL e RabbitMQ reais).
 
+**Performance (local):** scripts [k6](https://k6.io/) em `perf/` (smoke e carga leve de leitura). Rodam contra a API no ar com `k6 run`; detalhe em [docs/perf/k6-local.md](docs/perf/k6-local.md).
+
 ### Dívidas e pontos de atenção conhecidos
 
 - **Validação de arquivo crua:** o upload rejeita tamanho acima de `MEDIA_MAX_SIZE_BYTES` (5 MB) e combinações `content_type`/extensão fora das regras de `media.upload.types`, mas não inspeciona os *magic bytes* do arquivo — um JPEG renomeado de `.png` **e** declarado como `image/png` passa na validação. A checagem garante apenas que a declaração é *internamente consistente*, não que ela é verdadeira.
@@ -375,6 +377,7 @@ Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resou
   - [docs/s3/s3-integration.md](docs/s3/s3-integration.md) — camada de mídia: upload, URL pré-assinada, IAM e CORS
   - [docs/logging/logs.md](docs/logging/logs.md) — convenções de logs estruturados e catálogo de eventos
   - [docs/messaging/rabbitmq.md](docs/messaging/rabbitmq.md) — broker, topologia declarativa e variáveis de ambiente
+  - [docs/perf/k6-local.md](docs/perf/k6-local.md) — smoke/carga local com k6
   - [docs/system-design/mvp-system-design.png](docs/system-design/mvp-system-design.png) — modelo do sistema do MVP
 
 ---
