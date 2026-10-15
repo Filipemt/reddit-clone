@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="alter-tb-notification-delivery" author="motadev">
+        <addColumn tableName="tb_notification">
+            <column name="delivery_status" type="VARCHAR(20)" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attempts" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sent_at" type="TIMESTAMP"/>
+            <column name="last_error" type="VARCHAR(512)"/>
+        </addColumn>
+
+        <sql dbms="postgresql">
+            CREATE INDEX idx_notification_delivery_status_created
+                ON tb_notification (delivery_status, created_at ASC);
+        </sql>
+    </changeSet>
+</databaseChangeLog>
