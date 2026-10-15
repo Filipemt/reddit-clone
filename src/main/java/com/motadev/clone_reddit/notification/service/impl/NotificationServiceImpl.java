@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.notification.service.impl;
 
 import com.motadev.clone_reddit.messaging.outbox.dto.OutboxMessageEnvelope;
 import com.motadev.clone_reddit.notification.entity.Notification;
+import com.motadev.clone_reddit.notification.entity.NotificationDeliveryStatus;
 import com.motadev.clone_reddit.notification.logging.NotificationEventLog;
 import com.motadev.clone_reddit.notification.repository.NotificationRepository;
 import com.motadev.clone_reddit.notification.service.NotificationServiceI;
@@ -48,6 +49,8 @@ public class NotificationServiceImpl implements NotificationServiceI {
         notification.setRecipientId(recipientId);
         notification.setType(envelope.eventType());
         notification.setPayload(envelope.payload() == null ? "{}" : envelope.payload());
+        notification.setDeliveryStatus(NotificationDeliveryStatus.PENDING);
+        notification.setAttempts(0);
         notificationRepository.save(notification);
 
         notificationEventLog.created(

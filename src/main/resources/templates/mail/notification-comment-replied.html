@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>New reply to your comment</title>
+</head>
+<body>
+<p th:text="'Hello ' + ${username} + ','">Hello,</p>
+<p>Someone replied to your comment.</p>
+<p th:if="${commentId != null}">
+    <strong>Comment id:</strong>
+    <span th:text="${commentId}">comment-id</span>
+</p>
+<p th:if="${parentId != null}">
+    <strong>Parent comment id:</strong>
+    <span th:text="${parentId}">parent-id</span>
+</p>
+<p th:if="${postId != null}">
+    <strong>Post id:</strong>
+    <span th:text="${postId}">post-id</span>
+</p>
+</body>
+</html>

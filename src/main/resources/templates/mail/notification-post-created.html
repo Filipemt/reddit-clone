@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>New post in your community</title>
+</head>
+<body>
+<p th:text="'Hello ' + ${username} + ','">Hello,</p>
+<p>A new post was created in your community.</p>
+<p th:if="${title != null}">
+    <strong>Title:</strong>
+    <span th:text="${title}">Post title</span>
+</p>
+<p th:if="${postId != null}">
+    <strong>Post id:</strong>
+    <span th:text="${postId}">post-id</span>
+</p>
+<p th:if="${communityId != null}">
+    <strong>Community id:</strong>
+    <span th:text="${communityId}">community-id</span>
+</p>
+</body>
+</html>

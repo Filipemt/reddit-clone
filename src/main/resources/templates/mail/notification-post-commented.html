@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>New comment on your post</title>
+</head>
+<body>
+<p th:text="'Hello ' + ${username} + ','">Hello,</p>
+<p>Someone commented on your post.</p>
+<p th:if="${postId != null}">
+    <strong>Post id:</strong>
+    <span th:text="${postId}">post-id</span>
+</p>
+<p th:if="${commentId != null}">
+    <strong>Comment id:</strong>
+    <span th:text="${commentId}">comment-id</span>
+</p>
+</body>
+</html>

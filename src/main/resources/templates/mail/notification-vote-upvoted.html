@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Your content received an upvote</title>
+</head>
+<body>
+<p th:text="'Hello ' + ${username} + ','">Hello,</p>
+<p>Your content received an upvote.</p>
+<p th:if="${targetType != null}">
+    <strong>Target type:</strong>
+    <span th:text="${targetType}">POST</span>
+</p>
+<p th:if="${targetId != null}">
+    <strong>Target id:</strong>
+    <span th:text="${targetId}">target-id</span>
+</p>
+</body>
+</html>

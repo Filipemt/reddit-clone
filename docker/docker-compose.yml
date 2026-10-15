@@ -39,6 +39,16 @@ services:
     networks:
       - reddit_network
 
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: reddit-clone-mailhog
+    restart: always
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - reddit_network
+
 volumes:
   postgres_data:
   rabbitmq_data:

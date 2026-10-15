@@ -179,6 +179,12 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `notification.create.success` | INFO | `notificationId`, `recipientId`, `type`, `eventId` | Evento consumido e persistido |
 | `notification.create.duplicate` | DEBUG | `eventId` | Reentrega ignorada (`event_id` único) |
 | `notification.consume.failed` | ERROR | `eventId`, `type` | Falha no consumer (mensagem vai para retry/DLQ) |
+| `notification.email.sent` | INFO | `notificationId`, `recipientId`, `type` | E-mail enviado e marcado `SENT` |
+| `notification.email.retry` | WARN | `notificationId`, `recipientId`, `type`, `attempts` | Falha SMTP; permanece `PENDING` para nova tentativa |
+| `notification.email.failed` | ERROR | `notificationId`, `recipientId`, `type`, `attempts` | Esgotou `max-attempts`; marcado `FAILED` |
+| `notification.email.recipient_invalid` | WARN | `notificationId`, `recipientId`, `type`, `reason` | Destinatário inválido/ausente; marcado `FAILED` (sem e-mail no log) |
+| `notification.email.lock_not_acquired` | DEBUG | `advisoryLockId` | Outra instância detém o advisory lock; o job de e-mail pula a execução |
+| `notification.email.batch` | INFO | `sent`, `failed` | Resumo de um ciclo do job com pelo menos um registro processado |
 
 ### 4.13 Mensageria — `messaging/logging/MessagingEventLog.java` (chamado por `RabbitMqTopologyReadyListener`, `OutboxServiceImpl`, `OutboxPublisherJob`)
 
