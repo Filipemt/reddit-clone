@@ -1,12 +1,8 @@
 spring:
   application:
     name: clone-reddit
-
-  datasource:
-    url: jdbc:postgresql://localhost:5432/reddit-clone
-    username: postgres
-    password: postgres
-    driver-class-name: org.postgresql.Driver
+  profiles:
+    default: dev
 
   jpa:
     hibernate:
@@ -14,7 +10,6 @@ spring:
     properties:
       hibernate:
         format_sql: true
-    show-sql: true
 
   liquibase:
     enabled: true
@@ -31,11 +26,8 @@ spring:
         default-page-size: 20
         max-page-size: 50
 
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:reddit}
-    password: ${RABBITMQ_PASSWORD:reddit}
+  thymeleaf:
+    check-template-location: true
 
 logging:
   structured:
@@ -50,14 +42,6 @@ jwt:
   expiresIn: 300
   refreshExpirationMs: 86400000
   issuer: backend-reddit-clone
-
-aws:
-  access-key: ${AWS_ACCESS_KEY_ID}
-  secret-access-key: ${AWS_SECRET_ACCESS_KEY}
-  region: ${AWS_REGION}
-  s3:
-    bucket-name: ${AWS_S3_BUCKET_NAME}
-    presigned-url-expiration-seconds: ${AWS_S3_PRESIGNED_URL_SECONDS}
 
 media:
   upload:
@@ -79,13 +63,21 @@ app:
     notification-routing-key: "notification.#"
     notification-dlq: notification.events.dlq
     notification-dlq-routing-key: notification.dlq
+  mail:
+    from: ${MAIL_FROM:noreply@clone-reddit.local}
   outbox:
     publisher:
       enabled: true
       batch-size: 50
       advisory-lock-id: 987654321
       max-attempts: 5
-      fixed-delay-ms: 86400000
+      initial-delay-ms: 5000
+  notification:
+    email:
+      enabled: true
+      batch-size: 50
+      advisory-lock-id: 876543210
+      max-attempts: 5
       initial-delay-ms: 5000
   purge:
     communities:
