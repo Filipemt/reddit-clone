@@ -176,7 +176,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
   /mer                 → Modelo Entidade-Relacionamento e modelagem de dados (ainda não criado)
   /adr                 → Architecture Decision Records (se adotado futuramente)
-/docker                → docker-compose de desenvolvimento (PostgreSQL + RabbitMQ)
+/docker                → docker-compose de desenvolvimento (PostgreSQL + RabbitMQ + Mailhog)
 /src/main/java/com/motadev/clone_reddit
   /auth                → Autenticação (login, refresh, logout) e ciclo de vida da sessão
   /user                → Cadastro, perfil, papéis e exclusão de conta
@@ -203,11 +203,15 @@ README.md              → Este documento
 **1. Suba a infraestrutura local**
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d     # Postgres + RabbitMQ
+docker compose -f docker/docker-compose.yml up -d     # Postgres + RabbitMQ + Mailhog
 docker compose -f docker/docker-compose.yml down -v   # para resetar volumes (recria o schema via Liquibase)
 ```
 
+Profile padrão: `dev` (`application-dev.yaml`). Produção: `SPRING_PROFILES_ACTIVE=prod` (`application-prod.yaml`).
+
 RabbitMQ sobe com Management UI em http://localhost:15672 (user/password padrão `reddit`/`reddit`). Detalhes em [docs/messaging/rabbitmq.md](docs/messaging/rabbitmq.md).
+
+Mailhog captura SMTP local em `1025` (UI http://localhost:8025); não entrega e-mail real. Variáveis: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`.
 
 **2. Configure as variáveis de ambiente**
 
@@ -269,7 +273,7 @@ DOCKER_HOST=unix://$HOME/.colima/default/docker.sock ./mvnw test
 
 **Fase: autenticação + comunidades + mídia + RabbitMQ/outbox + posts/comentários/votos + notificações + busca ILIKE.**
 
-Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`auth`, `user`, `community`, `media`, `messaging`, `post`, `comment`, `vote`, `notification`, `search`, `shared`). Schema gerenciado por **Liquibase** (16 changelogs), **PostgreSQL** e **RabbitMQ** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
+Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`auth`, `user`, `community`, `media`, `messaging`, `post`, `comment`, `vote`, `notification`, `search`, `shared`). Schema gerenciado por **Liquibase** (17 changelogs), **PostgreSQL** e **RabbitMQ** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
 ### O que já funciona
 
@@ -306,7 +310,7 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 - RabbitMQ no compose; topologia (exchange `clone-reddit.events`, fila `notification.events` + DLQ) declarada em código via Spring AMQP.
 - Converter JSON (`JacksonJsonMessageConverter`) registrado para payloads de eventos de domínio.
 - **Transactional outbox**: `OutboxServiceI.enqueue` na mesma transação do domínio; `OutboxPublisherJob` publica pendências no RabbitMQ com advisory lock, retry e `FAILED`.
-- **Notification**: `@RabbitListener` consome `notification.events` e persiste em `tb_notification` (idempotente por `event_id`); sem API de inbox — entrega por e-mail fica para um worker futuro.
+- **Notification**: `@RabbitListener` consome `notification.events` e persiste em `tb_notification` (idempotente por `event_id`); `NotificationEmailJob` envia e-mail HTML (Thymeleaf) para linhas `PENDING` com retry/`FAILED` no banco; sem API de inbox. Ver [docs/notifications/README.md](docs/notifications/README.md).
 
 ### Endpoints
 
@@ -364,7 +368,7 @@ Edição e busca textual de comunidades, promoção de moderadores (RBAC context
 
 ### Stack
 
-Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring AMQP (RabbitMQ) · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
+Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring AMQP (RabbitMQ) · Spring Mail · Thymeleaf · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
 
 ---
 

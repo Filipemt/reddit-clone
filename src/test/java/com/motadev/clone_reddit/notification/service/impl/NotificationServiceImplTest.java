@@ -2,6 +2,7 @@ package com.motadev.clone_reddit.notification.service.impl;
 
 import com.motadev.clone_reddit.messaging.outbox.dto.OutboxMessageEnvelope;
 import com.motadev.clone_reddit.notification.entity.Notification;
+import com.motadev.clone_reddit.notification.entity.NotificationDeliveryStatus;
 import com.motadev.clone_reddit.notification.logging.NotificationEventLog;
 import com.motadev.clone_reddit.notification.repository.NotificationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +61,8 @@ class NotificationServiceImplTest {
         verify(notificationRepository).save(captor.capture());
         assertThat(captor.getValue().getRecipientId()).isEqualTo(USER_ID);
         assertThat(captor.getValue().getType()).isEqualTo("notification.post.created");
+        assertThat(captor.getValue().getDeliveryStatus()).isEqualTo(NotificationDeliveryStatus.PENDING);
+        assertThat(captor.getValue().getAttempts()).isZero();
     }
 
     @Test
