@@ -29,9 +29,16 @@ Qualquer outro path sob `/actuator/**` continua autenticado. Endpoints não expo
 - **Liveness** — o processo ainda responde; falha tende a reinício do container.
 - **Readiness** — pode receber tráfego; falha tira a instância do balanceador sem necessariamente reiniciar.
 
-No corte atual, o readiness ainda usa o agregado padrão do Boot (pode incluir indicators automáticos como DB/Rabbit). O refinamento (liveness enxuto + readiness só Postgres) fica no PR seguinte.
+### Grupos (PR2)
 
-## Fora deste corte
+| Probe | Contributors | Efeito |
+|---|---|---|
+| `liveness` | só `livenessState` | Queda de Postgres/Rabbit/Mail **não** reinicia o processo |
+| `readiness` | `readinessState` + `db` | Sem Postgres a instância sai do balanceador; Rabbit/Mail **não** tiram tráfego |
+
+`/actuator/health` (agregado geral) continua podendo refletir outros indicators; o contrato de deploy são os paths de probe acima.
+
+## Fora deste corte / próximos
 
 - Porta de management separada
 - Prometheus / métricas scrapeáveis

@@ -8,9 +8,15 @@ Expor só `health` com probes habilitados na mesma porta da API. `permitAll` res
 
 Deploy e orquestradores precisam de liveness/readiness HTTP. Sem Actuator + liberação no Security, o probe recebe 401.
 
-## Fora deste PR
+## Evolução
 
-Porta management, Prometheus, grupos customizados de readiness (só DB), Dockerfile e app no compose. Ver [[Index]].
+- **PR1:** Actuator mínimo + security dos probes.
+- **PR2:** grupos `liveness` = `livenessState`; `readiness` = `readinessState` + `db` (Rabbit/Mail fora do LB).
+- **PR3 (próximo):** Prometheus + porta management em prod.
+
+## Fora desta trilha (ainda)
+
+Dockerfile e app no compose. Ver [[Index]].
 
 ## Doc canônica
 
