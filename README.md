@@ -286,8 +286,8 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 - Exclusão de conta (`soft delete`) revoga **todos** os refresh tokens do usuário e, na mesma transação, desativa as inscrições dele em comunidades e remove (soft delete) as comunidades das quais é dono.
 - **Logs estruturados ECS** com campo `event` nomeado por operação e nenhum dado sensível (ver [docs/logging/logs.md](docs/logging/logs.md)).
 
-**Ops / health**
-- **Spring Boot Actuator** com `health` exposto e probes (`/actuator/health/liveness`, `/actuator/health/readiness`) públicos só via `GET`; demais endpoints do Actuator permanecem autenticados. Detalhes de componentes não aparecem na resposta anônima. Ver [docs/ops/actuator.md](docs/ops/actuator.md).
+**Ops / health / métricas**
+- **Spring Boot Actuator** com `health` e `prometheus` expostos; probes (`/actuator/health/liveness`, `/actuator/health/readiness`) e scrape Prometheus públicos só via `GET`. Liveness é process-only; readiness depende de `db`. Em prod o Actuator sobe na porta `8081` (rede interna). Demais endpoints do Actuator permanecem autenticados. Ver [docs/ops/actuator.md](docs/ops/actuator.md).
 
 **Comunidades** (`community`)
 - Modelo de domínio completo: `Community` (nome, slug, descrição, tópico, tipo, status, dono, timestamps) com **unicidade em `name` e `slug`**.
@@ -372,7 +372,7 @@ Edição e busca textual de comunidades, promoção de moderadores (RBAC context
 
 ### Stack
 
-Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring Boot Actuator · Spring AMQP (RabbitMQ) · Spring Mail · Thymeleaf · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
+Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring Boot Actuator · Micrometer Prometheus · Spring AMQP (RabbitMQ) · Spring Mail · Thymeleaf · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
 
 ---
 

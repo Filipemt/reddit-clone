@@ -12,11 +12,11 @@ Deploy e orquestradores precisam de liveness/readiness HTTP. Sem Actuator + libe
 
 - **PR1:** Actuator mínimo + security dos probes.
 - **PR2:** grupos `liveness` = `livenessState`; `readiness` = `readinessState` + `db` (Rabbit/Mail fora do LB).
-- **PR3 (próximo):** Prometheus + porta management em prod.
+- **PR3:** `micrometer-registry-prometheus`, exposure de `prometheus`, `permitAll` no scrape e `management.server.port=8081` em prod (rede privada).
 
 ## Fora desta trilha (ainda)
 
-Dockerfile e app no compose. Ver [[Index]].
+Métricas de domínio, Dockerfile e app no compose. Ver [[Index]].
 
 ## Doc canônica
 
