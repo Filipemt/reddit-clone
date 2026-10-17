@@ -51,7 +51,8 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/actuator/health",
                                 "/actuator/health/liveness",
-                                "/actuator/health/readiness"
+                                "/actuator/health/readiness",
+                                "/actuator/prometheus"
                                 ).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
