@@ -1,0 +1,63 @@
+# Observabilidade local (Prometheus)
+
+Este guia cobre o scrape local das métricas expostas pelo Actuator. A instrumentação da app está em [actuator.md](actuator.md).
+
+## Objetivo
+
+Simular em miniatura o fluxo de produção:
+
+```
+App no host (:8080)
+  → Prometheus (Docker, :9090) scrapea /actuator/prometheus
+```
+
+A API **continua** rodando com `./mvnw spring-boot:run` (fora do Docker). O compose sobe Postgres, RabbitMQ, Mailhog e Prometheus.
+
+## Pré-requisitos
+
+1. Infra Docker:
+   ```bash
+   docker compose -f docker/docker-compose.yml up -d
+   ```
+2. App no host (profile `dev`), com `/actuator/prometheus` respondendo:
+   ```bash
+   ./mvnw spring-boot:run
+   curl -s http://localhost:8080/actuator/prometheus | head
+   ```
+
+## Prometheus
+
+| Item | Valor |
+|---|---|
+| UI | http://localhost:9090 |
+| Targets | http://localhost:9090/targets |
+| Config | `docker/prometheus/prometheus.yml` |
+| Job | `clone-reddit` |
+| Target | `host.docker.internal:8080` |
+| Path | `/actuator/prometheus` |
+| Intervalo | 15s |
+
+O serviço Prometheus usa `extra_hosts: host.docker.internal:host-gateway` para alcançar a JVM no host a partir do container (Linux incluso).
+
+### Validar scrape
+
+1. Confirme que a app está no ar e o endpoint responde.
+2. Abra http://localhost:9090/targets — o target `clone-reddit` deve ficar **UP**.
+3. Em http://localhost:9090/graph, consulte por exemplo `jvm_memory_used_bytes`.
+
+Se o target ficar **DOWN**:
+
+- a app não está rodando na porta 8080;
+- o endpoint não está exposto (branch sem Actuator Prometheus);
+- em Docker muito antigo, `host-gateway` pode falhar — use o IP da bridge do host como fallback no `prometheus.yml`.
+
+## Produção (contraste)
+
+Em prod o Actuator sobe na porta **8081** (rede privada). O scrape local usa **8080** porque, no profile `dev`, management e API compartilham a mesma porta.
+
+## Fora deste corte
+
+- Grafana / dashboards (PR seguinte)
+- App dentro do Docker
+- Alertas, Loki, tracing
+- Métricas de domínio no Java
