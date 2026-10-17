@@ -177,7 +177,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
   /mer                 → Modelo Entidade-Relacionamento e modelagem de dados (ainda não criado)
   /adr                 → Architecture Decision Records (se adotado futuramente)
-/docker                → docker-compose de desenvolvimento (PostgreSQL + RabbitMQ + Mailhog + Prometheus)
+/docker                → docker-compose de desenvolvimento (PostgreSQL + RabbitMQ + Mailhog + Prometheus + Grafana)
 /src/main/java/com/motadev/clone_reddit
   /auth                → Autenticação (login, refresh, logout) e ciclo de vida da sessão
   /user                → Cadastro, perfil, papéis e exclusão de conta
@@ -204,7 +204,7 @@ README.md              → Este documento
 **1. Suba a infraestrutura local**
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d     # Postgres + RabbitMQ + Mailhog + Prometheus
+docker compose -f docker/docker-compose.yml up -d     # Postgres + RabbitMQ + Mailhog + Prometheus + Grafana
 docker compose -f docker/docker-compose.yml down -v   # para resetar volumes (recria o schema via Liquibase)
 ```
 
@@ -214,7 +214,9 @@ RabbitMQ sobe com Management UI em http://localhost:15672 (user/password padrão
 
 Mailhog captura SMTP local em `1025` (UI http://localhost:8025); não entrega e-mail real. Variáveis: `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`.
 
-Prometheus scrapea a API no host (`host.docker.internal:8080/actuator/prometheus`). UI: http://localhost:9090. Detalhes em [docs/ops/local-observability.md](docs/ops/local-observability.md).
+Prometheus scrapea a API no host (`host.docker.internal:8080/actuator/prometheus`). UI: http://localhost:9090.  
+Grafana (datasource + dashboard Micrometer provisionados): http://localhost:3000 — login `admin` / `admin` (somente dev).  
+Detalhes em [docs/ops/local-observability.md](docs/ops/local-observability.md).
 
 **2. Configure as variáveis de ambiente**
 
@@ -387,7 +389,7 @@ Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resou
   - [docs/s3/s3-integration.md](docs/s3/s3-integration.md) — camada de mídia: upload, URL pré-assinada, IAM e CORS
   - [docs/logging/logs.md](docs/logging/logs.md) — convenções de logs estruturados e catálogo de eventos
   - [docs/ops/actuator.md](docs/ops/actuator.md) — Actuator, health e probes de deploy
-  - [docs/ops/local-observability.md](docs/ops/local-observability.md) — Prometheus local (scrape do Actuator)
+  - [docs/ops/local-observability.md](docs/ops/local-observability.md) — Prometheus + Grafana locais
   - [docs/messaging/rabbitmq.md](docs/messaging/rabbitmq.md) — broker, topologia declarativa e variáveis de ambiente
   - [docs/perf/k6-local.md](docs/perf/k6-local.md) — smoke/carga local com k6
   - [docs/system-design/mvp-system-design.png](docs/system-design/mvp-system-design.png) — modelo do sistema do MVP
