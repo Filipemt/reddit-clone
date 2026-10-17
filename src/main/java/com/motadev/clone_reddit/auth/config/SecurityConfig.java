@@ -47,7 +47,12 @@ public class SecurityConfig {
                                 "/authentication/refresh",
                                 "/users/register"
                                 ).permitAll()
-
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/actuator/health",
+                                "/actuator/health/liveness",
+                                "/actuator/health/readiness"
+                                ).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));

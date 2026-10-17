@@ -173,6 +173,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
   /search               → Busca ILIKE (baseline)
   /s3                  → Documentação da integração com object storage (upload, URL pré-assinada, IAM, CORS)
   /security            → Documentação de segurança (autenticação, JWT, chaves, etc.)
+  /ops                 → Actuator, health e probes de deploy
   /system-design       → Diagramas e decisões de arquitetura (C4, diagramas de serviço, etc.)
   /mer                 → Modelo Entidade-Relacionamento e modelagem de dados (ainda não criado)
   /adr                 → Architecture Decision Records (se adotado futuramente)
@@ -271,7 +272,7 @@ DOCKER_HOST=unix://$HOME/.colima/default/docker.sock ./mvnw test
 
 ## 🚧 Status atual
 
-**Fase: autenticação + comunidades + mídia + RabbitMQ/outbox + posts/comentários/votos + notificações + busca ILIKE.**
+**Fase: autenticação + comunidades + mídia + RabbitMQ/outbox + posts/comentários/votos + notificações + busca ILIKE + Actuator health.**
 
 Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`auth`, `user`, `community`, `media`, `messaging`, `post`, `comment`, `vote`, `notification`, `search`, `shared`). Schema gerenciado por **Liquibase** (17 changelogs), **PostgreSQL** e **RabbitMQ** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
@@ -284,6 +285,9 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 - Papéis seedados (`BASIC`, `ADMIN`), usuário admin inicial e claim `scope` já incluído no token.
 - Exclusão de conta (`soft delete`) revoga **todos** os refresh tokens do usuário e, na mesma transação, desativa as inscrições dele em comunidades e remove (soft delete) as comunidades das quais é dono.
 - **Logs estruturados ECS** com campo `event` nomeado por operação e nenhum dado sensível (ver [docs/logging/logs.md](docs/logging/logs.md)).
+
+**Ops / health**
+- **Spring Boot Actuator** com `health` exposto e probes (`/actuator/health/liveness`, `/actuator/health/readiness`) públicos só via `GET`; demais endpoints do Actuator permanecem autenticados. Detalhes de componentes não aparecem na resposta anônima. Ver [docs/ops/actuator.md](docs/ops/actuator.md).
 
 **Comunidades** (`community`)
 - Modelo de domínio completo: `Community` (nome, slug, descrição, tópico, tipo, status, dono, timestamps) com **unicidade em `name` e `slug`**.
@@ -368,7 +372,7 @@ Edição e busca textual de comunidades, promoção de moderadores (RBAC context
 
 ### Stack
 
-Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring AMQP (RabbitMQ) · Spring Mail · Thymeleaf · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
+Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring Boot Actuator · Spring AMQP (RabbitMQ) · Spring Mail · Thymeleaf · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
 
 ---
 
@@ -380,6 +384,7 @@ Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resou
   - [docs/security/jwt-keys.md](docs/security/jwt-keys.md) — geração, verificação e rotação das chaves
   - [docs/s3/s3-integration.md](docs/s3/s3-integration.md) — camada de mídia: upload, URL pré-assinada, IAM e CORS
   - [docs/logging/logs.md](docs/logging/logs.md) — convenções de logs estruturados e catálogo de eventos
+  - [docs/ops/actuator.md](docs/ops/actuator.md) — Actuator, health e probes de deploy
   - [docs/messaging/rabbitmq.md](docs/messaging/rabbitmq.md) — broker, topologia declarativa e variáveis de ambiente
   - [docs/perf/k6-local.md](docs/perf/k6-local.md) — smoke/carga local com k6
   - [docs/system-design/mvp-system-design.png](docs/system-design/mvp-system-design.png) — modelo do sistema do MVP
