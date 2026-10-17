@@ -58,7 +58,7 @@ Se o target ficar **DOWN**:
 |---|---|
 | UI | http://localhost:3000 |
 | Usuário / senha | `admin` / `admin` (**só para dev local**) |
-| Datasource | Prometheus → `http://prometheus:9090` (provisionado) |
+| Datasource | Prometheus → `http://host.docker.internal:9090` (provisionado; porta publicada do host) |
 | Dashboard | **Clone Reddit — JVM / Micrometer** (pasta *Clone Reddit*) |
 
 Arquivos:
@@ -66,6 +66,8 @@ Arquivos:
 - `docker/grafana/provisioning/datasources/prometheus.yml`
 - `docker/grafana/provisioning/dashboards/dashboards.yml`
 - `docker/grafana/dashboards/jvm-micrometer.json`
+
+O datasource usa `host.docker.internal:9090` (com `extra_hosts` no serviço Grafana) para alcançar o Prometheus pela porta publicada no host. Isso evita depender de DNS container-a-container em redes Docker restritas.
 
 ### Validar dashboard
 
