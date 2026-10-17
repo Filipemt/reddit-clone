@@ -1,6 +1,6 @@
-# Observabilidade local (Prometheus)
+# Observabilidade local (Prometheus + Grafana)
 
-Este guia cobre o scrape local das métricas expostas pelo Actuator. A instrumentação da app está em [actuator.md](actuator.md).
+Este guia cobre o scrape local das métricas expostas pelo Actuator e a visualização no Grafana. A instrumentação da app está em [actuator.md](actuator.md).
 
 ## Objetivo
 
@@ -9,9 +9,10 @@ Simular em miniatura o fluxo de produção:
 ```
 App no host (:8080)
   → Prometheus (Docker, :9090) scrapea /actuator/prometheus
+    → Grafana (Docker, :3000) lê o Prometheus e mostra dashboards
 ```
 
-A API **continua** rodando com `./mvnw spring-boot:run` (fora do Docker). O compose sobe Postgres, RabbitMQ, Mailhog e Prometheus.
+A API **continua** rodando com `./mvnw spring-boot:run` (fora do Docker). O compose sobe Postgres, RabbitMQ, Mailhog, Prometheus e Grafana.
 
 ## Pré-requisitos
 
@@ -51,13 +52,34 @@ Se o target ficar **DOWN**:
 - o endpoint não está exposto (branch sem Actuator Prometheus);
 - em Docker muito antigo, `host-gateway` pode falhar — use o IP da bridge do host como fallback no `prometheus.yml`.
 
+## Grafana
+
+| Item | Valor |
+|---|---|
+| UI | http://localhost:3000 |
+| Usuário / senha | `admin` / `admin` (**só para dev local**) |
+| Datasource | Prometheus → `http://prometheus:9090` (provisionado) |
+| Dashboard | **Clone Reddit — JVM / Micrometer** (pasta *Clone Reddit*) |
+
+Arquivos:
+
+- `docker/grafana/provisioning/datasources/prometheus.yml`
+- `docker/grafana/provisioning/dashboards/dashboards.yml`
+- `docker/grafana/dashboards/jvm-micrometer.json`
+
+### Validar dashboard
+
+1. Faça login em http://localhost:3000 (`admin` / `admin`).
+2. Abra o dashboard provisionado (Dashboards → Clone Reddit).
+3. Gere um pouco de tráfego na API (`curl` em health ou rotas públicas) e aguarde ~15–30s.
+4. Os painéis de memória/CPU/threads e HTTP devem mostrar séries.
+
 ## Produção (contraste)
 
 Em prod o Actuator sobe na porta **8081** (rede privada). O scrape local usa **8080** porque, no profile `dev`, management e API compartilham a mesma porta.
 
 ## Fora deste corte
 
-- Grafana / dashboards (PR seguinte)
 - App dentro do Docker
 - Alertas, Loki, tracing
 - Métricas de domínio no Java

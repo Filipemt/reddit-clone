@@ -47,10 +47,10 @@ Em **produção**, o balanceador público deve publicar só a porta da API (8080
 - Scrape: `GET /actuator/prometheus`
 - Em prod: preferir `host:8081` na rede interna
 - Métricas JVM/HTTP vêm do Micrometer automaticamente; métricas de domínio ficam para um PR futuro
-- Ambiente local (servidor Prometheus no compose): [local-observability.md](local-observability.md)
+- Ambiente local (Prometheus + Grafana no compose): [local-observability.md](local-observability.md)
 
 ## Fora desta trilha (ainda)
 
-- Grafana / dashboards locais (PR seguinte de ops)
 - Métricas de domínio (`Counter`/`Timer` nos serviços)
 - Dockerfile e serviço `app` no docker-compose
+- Alertas, Loki, tracing

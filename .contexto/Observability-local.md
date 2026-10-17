@@ -11,6 +11,6 @@ A app já expõe métricas via Actuator/Micrometer. Sem um servidor Prometheus l
 ## Estado
 
 - **PR1:** Prometheus no compose + doc `docs/ops/local-observability.md`.
-- **PR2 (seguinte):** Grafana + dashboard Micrometer.
+- **PR2:** Grafana (`admin`/`admin` local) + datasource Prometheus + dashboard JVM/Micrometer provisionado.
 
 Ver [[Actuator-health]] e [[Index]].
