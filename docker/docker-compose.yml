@@ -49,9 +49,28 @@ services:
     networks:
       - reddit_network
 
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: reddit-clone-prometheus
+    restart: always
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - reddit_network
+
 volumes:
   postgres_data:
   rabbitmq_data:
+  prometheus_data:
 
 networks:
   reddit_network:
