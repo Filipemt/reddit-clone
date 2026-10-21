@@ -88,6 +88,9 @@ app:
       auth-register:
         limit: 5
         window-seconds: 3600
+      vote:
+        limit: 60
+        window-seconds: 60
     rules:
       - method: POST
         path-pattern: /authentication/login
@@ -101,6 +104,14 @@ app:
         path-pattern: /users/register
         policy: auth-register
         key: IP
+      - method: PUT
+        path-pattern: /posts/*/vote
+        policy: vote
+        key: USER
+      - method: PUT
+        path-pattern: /comments/*/vote
+        policy: vote
+        key: USER
   rabbitmq:
     exchange: clone-reddit.events
     notification-queue: notification.events
