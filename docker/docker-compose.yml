@@ -39,6 +39,22 @@ services:
     networks:
       - reddit_network
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: reddit-clone-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - reddit_network
+
   mailhog:
     image: mailhog/mailhog:v1.0.1
     container_name: reddit-clone-mailhog
@@ -92,6 +108,7 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  redis_data:
   prometheus_data:
   grafana_data:
 
