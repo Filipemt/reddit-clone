@@ -44,6 +44,12 @@ app:
       vote:
         limit: 2
         window-seconds: 60
+      post-create:
+        limit: 2
+        window-seconds: 60
+      post-read:
+        limit: 2
+        window-seconds: 60
     rules:
       - method: GET
         path-pattern: /__ratelimit_fixture/ping
@@ -68,6 +74,18 @@ app:
       - method: PUT
         path-pattern: /comments/*/vote
         policy: vote
+        key: USER
+      - method: POST
+        path-pattern: /communities/*/posts
+        policy: post-create
+        key: USER
+      - method: GET
+        path-pattern: /communities/*/posts
+        policy: post-read
+        key: USER
+      - method: GET
+        path-pattern: /posts/*
+        policy: post-read
         key: USER
   rabbitmq:
     exchange: clone-reddit.events

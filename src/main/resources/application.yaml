@@ -91,6 +91,12 @@ app:
       vote:
         limit: 60
         window-seconds: 60
+      post-create:
+        limit: 10
+        window-seconds: 3600
+      post-read:
+        limit: 120
+        window-seconds: 60
     rules:
       - method: POST
         path-pattern: /authentication/login
@@ -111,6 +117,18 @@ app:
       - method: PUT
         path-pattern: /comments/*/vote
         policy: vote
+        key: USER
+      - method: POST
+        path-pattern: /communities/*/posts
+        policy: post-create
+        key: USER
+      - method: GET
+        path-pattern: /communities/*/posts
+        policy: post-read
+        key: USER
+      - method: GET
+        path-pattern: /posts/*
+        policy: post-read
         key: USER
   rabbitmq:
     exchange: clone-reddit.events
