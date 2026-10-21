@@ -26,6 +26,17 @@ spring:
             enable: false
 
 app:
+  rate-limit:
+    enabled: true
+    policies:
+      fixture:
+        limit: 2
+        window-seconds: 60
+    rules:
+      - method: GET
+        path-pattern: /__ratelimit_fixture/ping
+        policy: fixture
+        key: IP
   rabbitmq:
     exchange: clone-reddit.events
     notification-queue: notification.events

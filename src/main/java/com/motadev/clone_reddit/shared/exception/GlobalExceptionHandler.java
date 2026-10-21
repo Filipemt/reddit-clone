@@ -3,7 +3,9 @@ package com.motadev.clone_reddit.shared.exception;
 import com.motadev.clone_reddit.shared.exception.dtos.ApiError;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import com.motadev.clone_reddit.shared.ratelimit.web.RateLimitHeaders;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -99,6 +101,20 @@ public class GlobalExceptionHandler {
                 "Uploaded file exceeds the maximum allowed size.",
                 request
         );
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiError> handleRateLimitExceeded(RateLimitExceededException ex,
+                                                            HttpServletRequest request) {
+        logHandled("http.rate_limit_exceeded", HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(RateLimitHeaders.LIMIT, String.valueOf(ex.getLimit()));
+        headers.set(RateLimitHeaders.REMAINING, String.valueOf(ex.getRemaining()));
+        headers.set(RateLimitHeaders.RESET, String.valueOf(ex.getResetEpochSeconds()));
+        headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()));
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .headers(headers)
+                .body(ApiError.from(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request));
     }
 
     @ExceptionHandler(Exception.class)

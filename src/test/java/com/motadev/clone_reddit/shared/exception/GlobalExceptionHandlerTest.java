@@ -70,4 +70,20 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody().error()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
     }
+
+    @Test
+    void deveResponder429ComHeadersQuandoRateLimitEstoura() {
+        RateLimitExceededException ex = new RateLimitExceededException("fixture", 2, 0, 1_700_000_000L, 15L);
+
+        ResponseEntity<ApiError> response = handler.handleRateLimitExceeded(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getBody().status()).isEqualTo(429);
+        assertThat(response.getBody().message()).isEqualTo("Too many requests. Try again later.");
+        assertThat(response.getHeaders().getFirst("X-RateLimit-Limit")).isEqualTo("2");
+        assertThat(response.getHeaders().getFirst("X-RateLimit-Remaining")).isEqualTo("0");
+        assertThat(response.getHeaders().getFirst("X-RateLimit-Reset")).isEqualTo("1700000000");
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("15");
+    }
 }
+
