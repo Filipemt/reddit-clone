@@ -56,6 +56,9 @@ app:
       comment-read:
         limit: 2
         window-seconds: 60
+      search:
+        limit: 2
+        window-seconds: 60
     rules:
       - method: GET
         path-pattern: /__ratelimit_fixture/ping
@@ -100,6 +103,10 @@ app:
       - method: GET
         path-pattern: /posts/*/comments
         policy: comment-read
+        key: USER
+      - method: GET
+        path-pattern: /search
+        policy: search
         key: USER
   rabbitmq:
     exchange: clone-reddit.events

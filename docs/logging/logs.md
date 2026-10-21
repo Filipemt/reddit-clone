@@ -35,8 +35,8 @@ Cada JSON contém campos padrão do ECS (`@timestamp`, `log.level`, `message`, `
 |---|---|---|
 | `DEBUG` | Detalhes operacionais internos, baixo volume | `auth.refresh.created`, `auth.jwt.generated`, `community.*` de baixo volume, `media.*.no_active_transaction` |
 | `INFO` | Fluxos de negócio que funcionam (comportamento esperado) | `user.register.success`, `auth.login.success`, `auth.logout`, etc. |
-| `WARN` | Falhas esperadas/tratadas — o app responde com 4xx, mas o evento importa | `auth.login.failed`, `auth.refresh.failed`, `user.register.conflict`, `http.*` |
-| `ERROR` | Falhas inesperadas, 5xx, com stack trace | `http.internal_error`, `media.upload.rollback_failed` |
+| `WARN` | Falhas esperadas/tratadas — o app responde com 4xx, mas o evento importa | `auth.login.failed`, `auth.refresh.failed`, `user.register.conflict`, `http.*`, `ratelimit.exceeded` |
+| `ERROR` | Falhas inesperadas, 5xx, com stack trace | `http.internal_error`, `media.upload.rollback_failed`, `ratelimit.store.failed` |
 
 O nível padrão é `INFO`; logo, os eventos `DEBUG` só aparecem se o pacote for ajustado para `DEBUG` (ver [seção 6](#6-como-mudar-o-nível)).
 
@@ -102,7 +102,17 @@ Emitidos quando uma requisição resulta em erro tratado. Todos carregam `event`
 | `http.malformed_body` | WARN | 400 | Corpo da requisição mal formado |
 | `http.method_not_allowed` | WARN | 405 | Método HTTP não suportado na rota |
 | `http.payload_too_large` | WARN | 413 | Upload acima de `spring.servlet.multipart.max-file-size` — o container rejeita antes do serviço, então este handler evita que a exceção caia no catch-all e vire 500 |
+| `http.rate_limit_exceeded` | WARN | 429 | Cota de rate limit estourada (`RateLimitExceededException`) |
 | `http.internal_error` | ERROR | 500 | Erro inesperado — inclui stack trace na causa |
+
+### 4.6.1 Rate limit — `shared/ratelimit/logging/RateLimitEventLog.java` (chamado por `RateLimitFilter`)
+
+| Evento | Nível | Campos | Quando ocorre |
+|---|---|---|---|
+| `ratelimit.exceeded` | WARN | `policy`, `keyType`, `path` | Request bloqueado por cota; resposta 429 |
+| `ratelimit.store.failed` | ERROR | `policy`, `path` (+ causa) | Redis indisponível/erro no store; request é liberado (fail-open) |
+
+O IP e o `userId` não entram no log de estouro (evita ruído/PII); a cota usa esses valores só na chave Redis. Detalhes em [docs/ratelimit/README.md](../ratelimit/README.md).
 
 ### 4.7 Seeding de admin — `shared/logging/AdminEventLog.java` (chamado por `AdminUserConfig`)
 
