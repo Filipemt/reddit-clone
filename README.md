@@ -86,13 +86,13 @@ Cada funcionalidade do produto foi escolhida (ou vai naturalmente exigir) uma ou
 
 | Funcionalidade | Habilidades treinadas | Situação |
 |---|---|---|
-| Sistema de votos | Concorrência, race conditions, operações atômicas, contadores distribuídos | 🟡 (sem Redis) |
+| Sistema de votos | Concorrência, race conditions, operações atômicas, contadores distribuídos | 🟡 (contadores no Postgres; Redis só no rate limit) |
 | Notificações | Idempotência, mensageria, circuit breaker, retry/backoff | 🟡 (outbox+Rabbit; sem circuit breaker) |
 | Autenticação e autorização | Segurança, RBAC/autorização contextual (moderador só age na própria comunidade) | 🟡 Autenticação pronta; autorização por dono ou papel global `ADMIN`; RBAC contextual (moderador) não iniciado |
 | Feed pessoal | Cache, fan-out on write/read, paginação por cursor | ⬜ |
 | Comentários aninhados | Modelagem de dados em árvore, consistência estrutural | 🟡 |
 | Busca | Indexação assíncrona, consistência eventual | 🟡 ILIKE baseline |
-| Rate limit (votos, posts, comentários) | Proteção contra abuso, algoritmos de rate limiting | ⬜ |
+| Rate limit (votos, posts, comentários) | Proteção contra abuso, algoritmos de rate limiting | ✅ Redis `INCR`+TTL; ver [docs/ratelimit/README.md](docs/ratelimit/README.md) |
 | Comunicação entre serviços | Microsserviços, timeout, retry, service discovery | ⬜ |
 | Processamento de mídia (upload) | Filas, processamento assíncrono, workers | 🟡 Upload síncrono direto no S3 feito; fila e worker não |
 | Recalculo de Hot score | Paralelismo/threads, jobs periódicos | ⬜ |
@@ -108,7 +108,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 |---|---|---|---|
 | Domínio central (usuário, comunidade, post, membership, ban, voto) | Relacional (PostgreSQL) | Integridade referencial, transações, relacionamento bem definido | 🟡 Parcial (usuário, comunidade, membership) |
 | Comentários aninhados | Relacional (fase inicial) → avaliação futura de documento (MongoDB) ? | Começa simples (adjacency list); migração planejada como exercício de evolução de arquitetura | ⬜ |
-| Cache de feed, contadores, rate limit | Chave-valor (Redis) | Leitura rápida, dados voláteis, alta frequência de acesso | ⬜ |
+| Cache de feed, contadores, rate limit | Chave-valor (Redis) | Leitura rápida, dados voláteis, alta frequência de acesso | 🟡 Rate limit em uso; cache de feed ainda não |
 | Busca (posts, comunidades, usuários) | Motor de busca (Elasticsearch) ? | Busca textual otimizada, impraticável em SQL puro | ⬜ |
 | Notificações | A avaliar (documento ou wide-column) | Alto volume de escrita, formato simples, pouco relacional | ⬜ |
 | Log de eventos / auditoria / analytics | A avaliar (wide-column ou time-series) | Escrita massiva, dados imutáveis (append-only) | ⬜ |
@@ -276,9 +276,9 @@ DOCKER_HOST=unix://$HOME/.colima/default/docker.sock ./mvnw test
 
 ## 🚧 Status atual
 
-**Fase: autenticação + comunidades + mídia + RabbitMQ/outbox + posts/comentários/votos + notificações + busca ILIKE + Actuator health.**
+**Fase: autenticação + comunidades + mídia + RabbitMQ/outbox + posts/comentários/votos + notificações + busca ILIKE + Actuator health + rate limit (Redis).**
 
-Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`auth`, `user`, `community`, `media`, `messaging`, `post`, `comment`, `vote`, `notification`, `search`, `shared`). Schema gerenciado por **Liquibase** (17 changelogs), **PostgreSQL** e **RabbitMQ** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
+Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`auth`, `user`, `community`, `media`, `messaging`, `post`, `comment`, `vote`, `notification`, `search`, `shared`). Schema gerenciado por **Liquibase** (17 changelogs), **PostgreSQL**, **RabbitMQ** e **Redis** via Docker (dev) e Testcontainers (testes), e **AWS SDK v2** para object storage.
 
 ### O que já funciona
 
@@ -292,6 +292,10 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 
 **Ops / health / métricas**
 - **Spring Boot Actuator** com `health` e `prometheus` expostos; probes (`/actuator/health/liveness`, `/actuator/health/readiness`) e scrape Prometheus públicos só via `GET`. Liveness é process-only; readiness depende de `db`. Em prod o Actuator sobe na porta `8081` (rede interna). Demais endpoints do Actuator permanecem autenticados. Ver [docs/ops/actuator.md](docs/ops/actuator.md).
+
+**Rate limit** (`shared/ratelimit`, Redis)
+- Janela fixa (`INCR` + `EXPIRE`) nos endpoints quentes (auth pública, votos, posts, comentários, busca).
+- Resposta **429** com headers `X-RateLimit-*` / `Retry-After`; body `ApiError` inalterado. Fail-open se o Redis cair. Ver [docs/ratelimit/README.md](docs/ratelimit/README.md).
 
 **Comunidades** (`community`)
 - Modelo de domínio completo: `Community` (nome, slug, descrição, tópico, tipo, status, dono, timestamps) com **unicidade em `name` e `slug`**.
@@ -355,7 +359,7 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 
 ### Testes
 
-Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação, os serviços de usuário, mídia e comunidade, e a declaração da topologia RabbitMQ (Testcontainers + PostgreSQL e RabbitMQ reais).
+Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, as regras de validação do JWT, os fluxos E2E de autenticação, os serviços de usuário, mídia e comunidade, a topologia RabbitMQ e o rate limit (Testcontainers + PostgreSQL, RabbitMQ e Redis reais).
 
 **Performance (local):** scripts [k6](https://k6.io/) em `perf/` (smoke e carga leve de leitura). Rodam contra a API no ar com `k6 run`; detalhe em [docs/perf/k6-local.md](docs/perf/k6-local.md).
 
@@ -376,7 +380,7 @@ Edição e busca textual de comunidades, promoção de moderadores (RBAC context
 
 ### Stack
 
-Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resource Server) · Spring Boot Actuator · Micrometer Prometheus · Spring AMQP (RabbitMQ) · Spring Mail · Thymeleaf · Liquibase · PostgreSQL · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
+Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Data Redis · Spring Security (OAuth2 Resource Server) · Spring Boot Actuator · Micrometer Prometheus · Spring AMQP (RabbitMQ) · Spring Mail · Thymeleaf · Liquibase · PostgreSQL · Redis · AWS SDK v2 (S3) · springdoc-openapi 3.1.0 · ECS structured logging · JUnit 5 + Mockito + Testcontainers
 
 ---
 
@@ -392,6 +396,7 @@ Spring Boot 4.1.1 · Java 25 · Spring Data JPA · Spring Security (OAuth2 Resou
   - [docs/ops/local-observability.md](docs/ops/local-observability.md) — Prometheus + Grafana locais
   - [docs/messaging/rabbitmq.md](docs/messaging/rabbitmq.md) — broker, topologia declarativa e variáveis de ambiente
   - [docs/perf/k6-local.md](docs/perf/k6-local.md) — smoke/carga local com k6
+  - [docs/ratelimit/README.md](docs/ratelimit/README.md) — rate limit Redis, políticas e headers
   - [docs/system-design/mvp-system-design.png](docs/system-design/mvp-system-design.png) — modelo do sistema do MVP
 
 ---

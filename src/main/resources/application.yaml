@@ -103,6 +103,9 @@ app:
       comment-read:
         limit: 60
         window-seconds: 60
+      search:
+        limit: 20
+        window-seconds: 60
     rules:
       - method: POST
         path-pattern: /authentication/login
@@ -143,6 +146,10 @@ app:
       - method: GET
         path-pattern: /posts/*/comments
         policy: comment-read
+        key: USER
+      - method: GET
+        path-pattern: /search
+        policy: search
         key: USER
   rabbitmq:
     exchange: clone-reddit.events
