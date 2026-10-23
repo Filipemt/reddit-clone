@@ -13,6 +13,10 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:reddit}
     password: ${RABBITMQ_PASSWORD:reddit}
+#    Desabilita Listener RabbitMQ para visualizar mensagens na fila local
+#    listener:
+#      simple:
+#        auto-startup: false
 
   data:
     redis:
