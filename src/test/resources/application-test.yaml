@@ -32,10 +32,31 @@ app:
       fixture:
         limit: 2
         window-seconds: 60
+      auth-login:
+        limit: 2
+        window-seconds: 60
+      auth-refresh:
+        limit: 2
+        window-seconds: 60
+      auth-register:
+        limit: 2
+        window-seconds: 60
     rules:
       - method: GET
         path-pattern: /__ratelimit_fixture/ping
         policy: fixture
+        key: IP
+      - method: POST
+        path-pattern: /authentication/login
+        policy: auth-login
+        key: IP
+      - method: POST
+        path-pattern: /authentication/refresh
+        policy: auth-refresh
+        key: IP
+      - method: POST
+        path-pattern: /users/register
+        policy: auth-register
         key: IP
   rabbitmq:
     exchange: clone-reddit.events

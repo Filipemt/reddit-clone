@@ -78,8 +78,29 @@ media:
 app:
   rate-limit:
     enabled: true
-    policies: {}
-    rules: []
+    policies:
+      auth-login:
+        limit: 10
+        window-seconds: 60
+      auth-refresh:
+        limit: 30
+        window-seconds: 60
+      auth-register:
+        limit: 5
+        window-seconds: 3600
+    rules:
+      - method: POST
+        path-pattern: /authentication/login
+        policy: auth-login
+        key: IP
+      - method: POST
+        path-pattern: /authentication/refresh
+        policy: auth-refresh
+        key: IP
+      - method: POST
+        path-pattern: /users/register
+        policy: auth-register
+        key: IP
   rabbitmq:
     exchange: clone-reddit.events
     notification-queue: notification.events
