@@ -76,6 +76,10 @@ media:
         extensions: [".gif"]
 
 app:
+  rate-limit:
+    enabled: true
+    policies: {}
+    rules: []
   rabbitmq:
     exchange: clone-reddit.events
     notification-queue: notification.events
