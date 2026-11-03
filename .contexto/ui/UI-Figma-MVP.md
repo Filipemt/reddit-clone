@@ -4,27 +4,26 @@ Arquivo: [Clone Reddit — UI Flows (MVP)](https://www.figma.com/design/Eqrowqaq
 `fileKey`: `EqrowqaqF3pemBVsxAXHqx`
 
 ## Objetivo
-UI bonita e simples para **consumir apenas os endpoints já implementados**. Sem feed pessoal, notificações inbox, ban, tags ou browse anônimo.
+UI no estilo **Twitter clássico** (sidebar esquerda + coluna central + trilho direito) para consumir os endpoints atuais.
 
-## Organização no Figma
+## Layout autenticado
+- **Esquerda:** logo, Home, Communities, Search, Profile, CTA New post, chip do usuário
+- **Centro:** timeline / formulário / detalhe
+- **Direita:** busca + “Communities for you”
 
-Plano Figma **Starter** = máximo **3 páginas**. Por isso a organização ficou:
+## Home após login
+A Home mostra **publicações** imediatamente (compose + cards de post).  
+Na API atual não há feed pessoal: a UI assume agregação client-side de `GET /communities/me` + posts por comunidade.
 
+## Organização (Starter = 3 páginas)
 | Página | Conteúdo |
 |---|---|
-| `01 · Mint Harbor + Cover` | Cover Board (índice + temas) + 10 telas Mint Harbor |
-| `02 · Ember Ink` | 10 telas Ember Ink (charcoal / amber) |
-| `03 · Cobalt Paper` | 10 telas Cobalt Paper (white / cobalt) |
+| `01 · Mint Harbor + Cover` | Cover + telas Mint |
+| `02 · Ember Ink` | Telas Ember |
+| `03 · Cobalt Paper` | Telas Cobalt |
 
-Cada página de tema empilha as mesmas 10 telas, na mesma ordem, para comparar e navegar.
-
-## Temas
-Ver [[Temas-UI]].
-
-## Telas
-Ver [[Telas-MVP]] e [[Fluxos-API-Atual]].
+## Telas (×3 temas)
+Login · Register · Home · Communities · My Communities · Community · Create Community · Compose Post · Post Detail · Search · Profile
 
 ## Relacionados
-- [[Fluxos-API-Atual]]
-- [[Temas-UI]]
-- [[Telas-MVP]]
+- [[Temas-UI]] · [[Telas-MVP]] · [[Fluxos-API-Atual]]

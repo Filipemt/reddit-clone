@@ -1,20 +1,20 @@
-# Telas MVP (consumidor de API)
+# Telas MVP (Twitter clássico)
 
-Cada tela existe **3 vezes** (um frame por tema em [[Temas-UI]]).
+Cada tela existe **3 vezes** ([[Temas-UI]]).
 
-| # | Tela | Endpoints |
-|---|---|---|
-| 1 | Login | `POST /authentication/login` |
-| 2 | Register | `POST /users/register` |
-| 3 | Communities Home | `GET /communities` |
-| 4 | My Communities | `GET /communities/me` |
-| 5 | Community Detail | `GET /communities/{id\|slug}`, posts, membership |
-| 6 | Create Community | `POST /communities` multipart |
-| 7 | Create Post | `POST /communities/{id}/posts` |
-| 8 | Post Detail | post, comments tree, votes, delete |
-| 9 | Search | `GET /search?q=` |
-| 10 | Profile / Account | `GET /users/{id}`, logout, delete me |
+| # | Tela | Layout | Endpoints / nota |
+|---|---|---|---|
+| 1 | Login | split brand + form | `POST /authentication/login` |
+| 2 | Register | split brand + form | `POST /users/register` |
+| 3 | Home | sidebar + feed de posts | composto: `GET /communities/me` + posts |
+| 4 | Communities | sidebar + lista | `GET /communities` · join |
+| 5 | My Communities | sidebar + lista | `GET /communities/me` · leave |
+| 6 | Community | sidebar + banner + posts | community + posts + membership |
+| 7 | Create Community | sidebar + form | `POST /communities` multipart |
+| 8 | Compose Post | sidebar + form | `POST /communities/{id}/posts` |
+| 9 | Post Detail | sidebar + thread | post · comments · votes |
+| 10 | Search | sidebar + tabs | `GET /search?q=` |
+| 11 | Profile | sidebar + perfil + posts | `GET /users/{id}` · logout · delete me |
 
 ## Relacionados
-- [[Fluxos-API-Atual]]
-- [[UI-Figma-MVP]]
+- [[UI-Figma-MVP]] · [[Fluxos-API-Atual]]
