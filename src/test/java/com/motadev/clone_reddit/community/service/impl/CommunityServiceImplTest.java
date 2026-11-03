@@ -125,6 +125,7 @@ class CommunityServiceImplTest {
         CommunityResponseDTO response = service.create(request(), null, null);
 
         verify(communityMembershipServiceI).registerOwner(response.communityId(), USER_ID);
+        assertThat(response.ownerId()).isEqualTo(USER_ID);
         assertThat(response.memberCount()).isEqualTo(1L);
         assertThat(response.isMember()).isTrue();
     }

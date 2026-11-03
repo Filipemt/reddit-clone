@@ -154,11 +154,14 @@ class CommunityMembershipIntegrationTest {
 
     @Test
     void createdCommunityHasOwnerAsModerator() {
-        String token = registerAndLogin(uniqueUser());
+        String username = uniqueUser();
+        UUID ownerId = registerAndGetId(username);
+        String token = login(username);
 
         ResponseEntity<Map> response = createCommunityViaApi(token);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody().get("ownerId")).isEqualTo(ownerId.toString());
         assertThat(response.getBody().get("memberCount")).isEqualTo(1);
         assertThat(response.getBody().get("isMember")).isEqualTo(true);
 

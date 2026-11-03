@@ -14,6 +14,7 @@ public record CommunityResponseDTO(
         String topicName,
         Long typeId,
         String typeName,
+        UUID ownerId,
         MediaResponse icon,
         MediaResponse banner,
         Long memberCount,

@@ -51,6 +51,7 @@ public class CommunityConverter {
                 community.getTopic().getName(),
                 community.getType().getTypeId(),
                 community.getType().getName(),
+                community.getOwnerId(),
                 toReference(community.getIconMediaId(), urls),
                 toReference(community.getBannerMediaId(), urls),
                 community.getMemberCount(),
