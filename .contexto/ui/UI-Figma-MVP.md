@@ -7,9 +7,14 @@ Arquivo: [Clone Reddit — UI Flows (MVP)](https://www.figma.com/design/Eqrowqaq
 UI no estilo **Twitter clássico** (sidebar esquerda + coluna central + trilho direito) para consumir os endpoints atuais.
 
 ## Layout autenticado
-- **Esquerda:** logo, Home, Communities, Search, Profile, CTA New post, chip do usuário
-- **Centro:** timeline / formulário / detalhe
-- **Direita:** busca + “Communities for you”
+- **Esquerda:** logo, Home, Communities, CTA New post, chip do usuário (abre Profile)
+- **Centro:** header com caixa de busca + timeline / formulário / detalhe
+- **Direita:** “Communities for you” (sem duplicar a busca — ela vive no header)
+
+### Nav (iteração)
+- Sem item Search no menu → input no header.
+- Sem item Profile no menu → clique no chip do usuário.
+
 
 ## Home após login
 A Home mostra **publicações** imediatamente (compose + cards de post).  
