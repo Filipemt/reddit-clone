@@ -11,6 +11,7 @@ aws:
   s3:
     bucket-name: test-bucket
     presigned-url-expiration-seconds: 3600
+    presigned-url-cache-safety-buffer-seconds: 60
 
 spring:
   mail:

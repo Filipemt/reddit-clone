@@ -28,6 +28,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +44,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -69,6 +73,9 @@ class S3ServiceImplTest {
         service = new S3ServiceImpl(s3Client, s3Presigner, mediaRepository,
                 new MediaConverter(), mediaFileValidator, new MediaEventLog());
         ReflectionTestUtils.setField(service, "bucketName", BUCKET);
+        ReflectionTestUtils.setField(service, "presignedUrlExpirationSeconds", 3600L);
+        ReflectionTestUtils.setField(service, "presignedUrlCacheSafetyBufferSeconds", 60L);
+        ReflectionTestUtils.setField(service, "clock", Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
         presigned = presignedWithUrl(SIGNED_URL);
     }
 
@@ -187,6 +194,49 @@ class S3ServiceImplTest {
         assertThatThrownBy(() -> service.getUrl(UUID.randomUUID()))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Media not found");
+    }
+
+    @Test
+    void deveReutilizarUrlAssinadaEnquantoEntradaDoCacheForValida() {
+        UUID mediaId = UUID.randomUUID();
+        stubPresigner();
+        when(mediaRepository.findById(mediaId)).thenReturn(Optional.of(media(mediaId)));
+
+        assertThat(service.getUrl(mediaId)).isEqualTo(SIGNED_URL);
+        assertThat(service.getUrl(mediaId)).isEqualTo(SIGNED_URL);
+
+        verify(s3Presigner, times(1)).presignGetObject(any(GetObjectPresignRequest.class));
+    }
+
+    @Test
+    void deveReassinarUrlQuandoEntradaDoCacheExpirar() {
+        UUID mediaId = UUID.randomUUID();
+        stubPresigner();
+        when(mediaRepository.findById(mediaId)).thenReturn(Optional.of(media(mediaId)));
+
+        assertThat(service.getUrl(mediaId)).isEqualTo(SIGNED_URL);
+
+        // TTL de cache = 3600 - 60 = 3540s; avanca alem do expiresAt para forcar miss.
+        ReflectionTestUtils.setField(service, "clock",
+                Clock.fixed(Instant.parse("2026-01-01T00:59:01Z"), ZoneOffset.UTC));
+
+        assertThat(service.getUrl(mediaId)).isEqualTo(SIGNED_URL);
+        verify(s3Presigner, times(2)).presignGetObject(any(GetObjectPresignRequest.class));
+    }
+
+    @Test
+    void deveInvalidarCacheAoDeletarMidia() {
+        UUID mediaId = UUID.randomUUID();
+        Media existing = media(mediaId);
+        stubPresigner();
+        when(mediaRepository.findById(mediaId)).thenReturn(Optional.of(existing));
+        when(mediaRepository.findAllById(any())).thenReturn(List.of(existing));
+
+        assertThat(service.getUrl(mediaId)).isEqualTo(SIGNED_URL);
+        service.deleteAfterCommit(List.of(mediaId));
+        assertThat(service.getUrl(mediaId)).isEqualTo(SIGNED_URL);
+
+        verify(s3Presigner, times(2)).presignGetObject(any(GetObjectPresignRequest.class));
     }
 
     @Test

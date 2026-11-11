@@ -138,7 +138,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 - **Decisão:** arquivos (imagem/vídeo) vão para object storage (S3, via AWS SDK v2); o banco de dados guarda apenas a referência (`tb_media`: bucket + object key + content type + tamanho).
 - **Motivo:** banco de dados não é otimizado para armazenar binários grandes; a API S3 permite o mesmo código em qualquer ambiente compatível.
 - **Na prática:** a chave do objeto é `{pasta}/{uuid}{extensão}`, com pasta por comunidade (`communities/{communityId}/icon/...`, `communities/{communityId}/banner/...`). Por isso a comunidade é gravada antes do upload. O UUID evita colisão e não expõe o nome original do arquivo. A extensão vem de uma allowlist validada, nunca do nome cru do cliente.
-- **Leitura:** URLs pré-assinadas (`S3Presigner`) com validade configurável em `AWS_S3_PRESIGNED_URL_SECONDS` — o domínio nunca persiste a URL, que expira.
+- **Leitura:** URLs pré-assinadas (`S3Presigner`) com validade configurável em `AWS_S3_PRESIGNED_URL_SECONDS`, reutilizadas em cache in-memory com buffer de segurança (`AWS_S3_PRESIGNED_URL_CACHE_SAFETY_BUFFER_SECONDS`) — o domínio nunca persiste a URL, que expira.
 - **Atomicidade:** o `putObject` não participa da transação do banco. A camada de mídia registra uma `TransactionSynchronization` a cada upload e, no `afterCompletion`, apaga o objeto se a transação não confirmar. O registro em `tb_media` é revertido junto com o restante do trabalho, então banco e bucket convergem — inclusive quando a falha só é detectada no commit. Uma segunda janela é coberta dentro do próprio `upload`: se o `save` da mídia falhar depois do `putObject`, o objeto é apagado imediatamente, já que sem o registro ele seria inalcançável para qualquer compensação.
 - **Ponto de atenção:** se a JVM morrer entre o `putObject` e o commit, o objeto vira órfão e só um job de varredura (outbox pattern) poderia limpá-lo.
 
@@ -310,7 +310,7 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 **Mídia** (`media`)
 - `S3Client` para escrita e `S3Presigner` para leitura; `tb_media` guarda bucket, object key, content type e tamanho.
 - Upload com chave `{pasta}/{uuid}{extensão}` e pasta por comunidade (`communities/{communityId}/icon|banner`).
-- **URL pré-assinada** gerada sob demanda e devolvida na resposta (em lote nas listagens) — o domínio nunca persiste a URL.
+- **URL pré-assinada** gerada sob demanda (com cache in-memory por JVM) e devolvida na resposta (em lote nas listagens) — o domínio nunca persiste a URL.
 - Exclusão de mídia em duas fases: a linha de `tb_media` sai na transação e o objeto do bucket só depois do commit (`deleteAfterCommit`).
 
 **Posts** (`post`)
@@ -372,7 +372,6 @@ Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, a
 - **Exclusão de mídia sem retry nem auditoria:** o `deleteObject` após o commit também não tem retentativa; se falhar, o objeto vira órfão e só aparece em `media.upload.rollback_failed`.
 - **`findUserOrThrow` não filtra `isActive`:** um usuário desativado ainda pode ser lido por id.
 - **Sem job de purga de refresh tokens** expirados/revogados; sem revogação de access token antes do `exp`. O filtro de JWT também não verifica `isActive`: após excluir a conta, o usuário ainda age (por exemplo, entra em comunidades) até o token expirar.
-- **Sem cache de URL pré-assinada:** uma nova URL é assinada a cada leitura.
 
 ### Próximos passos planejados
 

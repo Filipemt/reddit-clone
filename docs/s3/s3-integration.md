@@ -108,6 +108,7 @@ aws:
   s3:
     bucket-name: ${AWS_S3_BUCKET_NAME}
     presigned-url-expiration-seconds: ${AWS_S3_PRESIGNED_URL_SECONDS}
+    presigned-url-cache-safety-buffer-seconds: ${AWS_S3_PRESIGNED_URL_CACHE_SAFETY_BUFFER_SECONDS:60}
 ```
 
 | Propriedade | Variável de ambiente | Tipo | Consumida em |
@@ -117,8 +118,9 @@ aws:
 | `aws.secret-access-key` | `AWS_SECRET_ACCESS_KEY` | String | `StorageConfig.credentialsProvider` |
 | `aws.s3.bucket-name` | `AWS_S3_BUCKET_NAME` | String | `S3ServiceImpl.bucketName` (upload e resposta) |
 | `aws.s3.presigned-url-expiration-seconds` | `AWS_S3_PRESIGNED_URL_SECONDS` | long | `S3ServiceImpl.presignedUrlExpirationSeconds` (GET) |
+| `aws.s3.presigned-url-cache-safety-buffer-seconds` | `AWS_S3_PRESIGNED_URL_CACHE_SAFETY_BUFFER_SECONDS` | long | `S3ServiceImpl.presignedUrlCacheSafetyBufferSeconds` (TTL do cache em memória) |
 
-O `.env.example` da raiz lista exatamente essas cinco variáveis:
+O `.env.example` da raiz lista as credenciais e o bucket; o buffer do cache tem default `60` e é opcional:
 
 ```
 AWS_ACCESS_KEY_ID=
@@ -126,9 +128,10 @@ AWS_SECRET_ACCESS_KEY=
 AWS_REGION=
 AWS_S3_BUCKET_NAME=
 AWS_S3_PRESIGNED_URL_SECONDS=
+AWS_S3_PRESIGNED_URL_CACHE_SAFETY_BUFFER_SECONDS=60
 ```
 
-Sobre a validade da URL pré-assinada: `S3ServiceImpl` declara `@Value("${aws.s3.presigned-url-expiration-seconds:3600}")`, com fallback de 3600 s (1 h). Como o `application.yaml` sempre define a propriedade a partir da env var, na prática o valor vem do ambiente.
+Sobre a validade da URL pré-assinada: `S3ServiceImpl` declara `@Value("${aws.s3.presigned-url-expiration-seconds:3600}")`, com fallback de 3600 s (1 h). O TTL do cache em memória é `max(1, expiration − safety-buffer)` — a entrada some do cache **antes** da URL SigV4 expirar, para o cliente não receber um link já inválido.
 
 O bucket é único por ambiente e entra na construção da `objectKey`; o valor em vigor é o mesmo para todas as mídias, porque é lido da configuração e não do request.
 
@@ -169,7 +172,7 @@ A configuração é vinculada por `@ConfigurationProperties` (`media/config/Medi
 
 Os dois limites precisam concordar: `max-file-size` é o que o container impõe antes de qualquer código rodar, e `media.upload.max-size-bytes` é a checagem no serviço. Sem o primeiro, o padrão do Tomcat (1 MB) tornaria o limite de 5 MB inalcançável. `max-request-size` existe porque `POST /communities` envia ícone e banner na mesma requisição — 12 MB acomoda dois arquivos de 5 MB e o `data` em JSON.
 
-Uma observação sobre o `.env`: `MEDIA_MAX_SIZE_BYTES` tem fallback (`5242880`) no próprio `${...:default}`, então não precisa ser exportada. As cinco variáveis `AWS_*` não têm fallback e são obrigatórias.
+Uma observação sobre o `.env`: `MEDIA_MAX_SIZE_BYTES` e `AWS_S3_PRESIGNED_URL_CACHE_SAFETY_BUFFER_SECONDS` têm fallback no próprio `${...:default}`, então não precisam ser exportadas. As demais variáveis `AWS_*` de credencial/bucket/expiração são obrigatórias no profile que as referencia sem default.
 
 ## 5. Fluxo de upload
 
@@ -290,12 +293,13 @@ Consumidores: `CommunityServiceImpl` (troca e remoção de ícone/banner apagam 
 `S3ServiceImpl.getUrl(UUID mediaId)`:
 
 1. Busca a mídia por `mediaId` em `tb_media`; se não existir, lança `ResourceNotFoundException("Media not found")`, tratado pelo `GlobalExceptionHandler` como **404**.
-2. Monta um `GetObjectPresignRequest` com `signatureDuration = Duration.ofSeconds(presignedUrlExpirationSeconds)` e o `GetObjectRequest` montado com o **bucket e a key vindos do registro do banco** (não da configuração) — assim a assinatura acompanha o bucket em que o objeto foi realmente gravado.
-3. `s3Presigner.presignGetObject(presignRequest).url()` devolve a URL assinada, que já contém a query SigV4 (`X-Amz-Signature`, `X-Amz-Expires`, `X-Amz-Credential`) e só é válida até `X-Amz-Expires`.
+2. Se o cache in-memory tiver entrada válida para o `mediaId`, devolve a URL cacheada sem chamar o `S3Presigner`.
+3. Caso contrário, monta um `GetObjectPresignRequest` com `signatureDuration = Duration.ofSeconds(presignedUrlExpirationSeconds)` e o `GetObjectRequest` com o **bucket e a key vindos do registro do banco** (não da configuração) — assim a assinatura acompanha o bucket em que o objeto foi realmente gravado.
+4. `s3Presigner.presignGetObject(presignRequest).url()` devolve a URL assinada (query SigV4); a entrada é guardada no cache com TTL `max(1, expiration − safety-buffer)`.
 
-O bucket é lido de `media.getBucket()` porque o `mediaId` persistido carrega o bucket junto — a coluna existe justamente para o registro ser autossuficiente na geração da URL.
+O bucket é lido de `media.getBucket()` porque o `mediaId` persistido carrega o bucket junto — a coluna existe justamente para o registro ser autossuficiente na geração da URL. A URL nunca vai para o banco.
 
-`S3ServiceImpl.getUrls(Collection<UUID> mediaIds)` faz o mesmo em lote, com uma única consulta (`findAllById`), e devolve `Map<mediaId, url>`. Ids sem registro ficam fora do mapa, em vez de lançar 404. É o caminho usado pelas leituras de comunidade (listagem, detalhe e `/communities/me`), evitando uma consulta por mídia.
+`S3ServiceImpl.getUrls(Collection<UUID> mediaIds)` faz o mesmo em lote, com uma única consulta (`findAllById`), e devolve `Map<mediaId, url>` — cada id passa pelo mesmo cache. Ids sem registro ficam fora do mapa, em vez de lançar 404. É o caminho usado pelas leituras de comunidade (listagem, detalhe e `/communities/me`), evitando uma consulta por mídia.
 
 ## 7. Modelo de dados
 
@@ -424,6 +428,6 @@ Fatos do que existe hoje no código, para evitar suposições ao consumir a cama
 - **A validação confia no `content_type` declarado.** O tamanho e a combinação `content-type`/extensão são verificados antes de ler os bytes (`MediaFileValidator`), mas não há inspeção de *magic bytes*. Como a checagem é de consistência e não de conteúdo, um JPEG renomeado de `.png` **e** declarado como `image/png` continua passando, e o `tb_media.content_type` registra `image/png`. Fechar isso exigiria ler os primeiros bytes do arquivo e comparar com o que foi declarado.
 - **A compensação é síncrona e sem retry.** O `deleteObject` roda no mesmo thread da requisição, dentro do `afterCompletion`, e não há retentativa. Falha de delete fica em `media.upload.rollback_failed` e o objeto vira órfão.
 - **A janela "JVM morre entre `putObject` e commit" continua aberta.** Nem a transação do banco nem a compensação resolvem esse caso; a correção é um job de varredura (outbox pattern) que compare o bucket contra `tb_media`.
-- **Cobertura de teste:** `media/service/impl/S3ServiceImplTest` (16 casos: upload, validação, compensação no `save`, rollback confirmado/não confirmado/desconhecido, delete que falha sem mascarar a exceção original, URLs em lote e `deleteAfterCommit` com e sem transação) e `media/validator/MediaFileValidatorTest` (13 casos, incluindo extensão com barra). `community/service/impl/CommunityServiceImplTest` cobre criação, troca e remoção de ícone/banner do lado consumidor, e `shared/exception/GlobalExceptionHandlerTest` cobre o 413 do limite de upload.
+- **Cobertura de teste:** `media/service/impl/S3ServiceImplTest` (upload, validação, compensação no `save`, rollback confirmado/não confirmado/desconhecido, delete que falha sem mascarar a exceção original, URLs em lote, cache de URL — hit, expiração e invalidação no delete — e `deleteAfterCommit` com e sem transação) e `media/validator/MediaFileValidatorTest` (13 casos, incluindo extensão com barra). `community/service/impl/CommunityServiceImplTest` cobre criação, troca e remoção de ícone/banner do lado consumidor, e `shared/exception/GlobalExceptionHandlerTest` cobre o 413 do limite de upload.
 - **Os testes de integração não exigem credenciais reais.** Os testes que sobem o contexto usam `@ActiveProfiles("test")`, e `src/test/resources/application-test.yaml` define chaves JWT de teste e valores falsos para o bloco `aws`, suficientes para construir o `StorageConfig` (nenhum teste chama o S3 de verdade). O PostgreSQL vem do Testcontainers.
-- **Sem cache de URL.** `getUrl` assina uma nova URL a cada chamada; a validade é a de `AWS_S3_PRESIGNED_URL_SECONDS` a partir do momento da geração.
+- **Cache de URL em memória.** `getUrl`/`getUrls` reutilizam a URL assinada enquanto a entrada do `ConcurrentHashMap` for válida. O TTL do cache é menor que `AWS_S3_PRESIGNED_URL_SECONDS` pelo buffer `AWS_S3_PRESIGNED_URL_CACHE_SAFETY_BUFFER_SECONDS` (default 60 s). A URL **não** é persistida no banco; `deleteAfterCommit` remove a entrada do cache. O cache é por JVM — cada instância assina a própria URL.
