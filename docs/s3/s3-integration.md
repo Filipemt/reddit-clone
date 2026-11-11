@@ -37,6 +37,7 @@ A camada vive em `src/main/java/com/motadev/clone_reddit/media/` e a configuraç
 ```
 CommunityController  (POST /communities, PUT/DELETE /communities/{id}/icon|banner)
 CommunityPurgeJob    (purge físico das comunidades removidas)
+PostMediaPurgeJob    (GC de mídia de posts soft-deleted)
         │
         ▼
 CommunityServiceImpl  ──► MediaServiceI ──► S3ServiceImpl
@@ -283,7 +284,7 @@ A consequência arquitetural que vale registrar: essa compensação está na cam
 
 Falha no `deleteObject` não relança e fica em `media.upload.rollback_failed`; o objeto vira órfão.
 
-Consumidores: `CommunityServiceImpl` (troca e remoção de ícone/banner apagam a mídia anterior) e `CommunityPurgeJob` (purge físico de comunidades removidas). O soft delete de comunidade **não** apaga mídia — ela é retida até o purge.
+Consumidores: `CommunityServiceImpl` (troca e remoção de ícone/banner apagam a mídia anterior), `CommunityPurgeJob` (purge físico de comunidades removidas) e `PostMediaPurgeJob` (GC de mídia de posts soft-deleted). O soft delete de comunidade/post **não** apaga mídia — ela é retida até o purge.
 
 ## 6. Fluxo de leitura (URL pré-assinada)
 
@@ -419,7 +420,7 @@ O upload atual trafega **pelo backend** (o arquivo vem no `multipart/form-data` 
 
 Fatos do que existe hoje no código, para evitar suposições ao consumir a camada:
 
-- **Não há controller de `media`.** O upload e a exclusão só são disparados por outro módulo (as rotas de ícone/banner de comunidade e o purge); `MediaServiceI` é chamado internamente, não exposto em rota própria.
+- **Não há controller de `media`.** O upload e a exclusão só são disparados por outro módulo (rotas de ícone/banner de comunidade, purge de comunidade e `PostMediaPurgeJob`); `MediaServiceI` é chamado internamente, não exposto em rota própria.
 - **A exclusão de mídia é sempre indireta.** `deleteAfterCommit` apaga a linha na transação e o objeto após o commit ([seção 5.2](#52-exclusao-de-midia-deleteaftercommit)), mas só quando a mídia deixa de ser referenciada (troca, remoção ou purge). Não deixa metadados de auditoria: a remoção só aparece em log quando falha (`media.upload.rollback_failed`).
 - **A validação confia no `content_type` declarado.** O tamanho e a combinação `content-type`/extensão são verificados antes de ler os bytes (`MediaFileValidator`), mas não há inspeção de *magic bytes*. Como a checagem é de consistência e não de conteúdo, um JPEG renomeado de `.png` **e** declarado como `image/png` continua passando, e o `tb_media.content_type` registra `image/png`. Fechar isso exigiria ler os primeiros bytes do arquivo e comparar com o que foi declarado.
 - **A compensação é síncrona e sem retry.** O `deleteObject` roda no mesmo thread da requisição, dentro do `afterCompletion`, e não há retentativa. Falha de delete fica em `media.upload.rollback_failed` e o objeto vira órfão.
