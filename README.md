@@ -96,7 +96,7 @@ Cada funcionalidade do produto foi escolhida (ou vai naturalmente exigir) uma ou
 | Comunicação entre serviços | Microsserviços, timeout, retry, service discovery | ⬜ |
 | Processamento de mídia (upload) | Filas, processamento assíncrono, workers | 🟡 Upload síncrono direto no S3 feito; fila e worker não |
 | Recalculo de Hot score | Paralelismo/threads, jobs periódicos | ⬜ |
-| Transação distribuída (banco + object storage) | Consistência, compensação, outbox pattern | 🟡 Compensação no S3 implementada; outbox e GC de órfãos não |
+| Transação distribuída (banco + object storage) | Consistência, compensação, outbox pattern | 🟡 Compensação no S3 + job de varredura de órfãos; outbox de mídia não |
 
 ---
 
@@ -140,7 +140,7 @@ O projeto não usará um único banco de dados — cada tipo de dado será aloca
 - **Na prática:** a chave do objeto é `{pasta}/{uuid}{extensão}`, com pasta por comunidade (`communities/{communityId}/icon/...`, `communities/{communityId}/banner/...`). Por isso a comunidade é gravada antes do upload. O UUID evita colisão e não expõe o nome original do arquivo. A extensão vem de uma allowlist validada, nunca do nome cru do cliente.
 - **Leitura:** URLs pré-assinadas (`S3Presigner`) com validade configurável em `AWS_S3_PRESIGNED_URL_SECONDS` — o domínio nunca persiste a URL, que expira.
 - **Atomicidade:** o `putObject` não participa da transação do banco. A camada de mídia registra uma `TransactionSynchronization` a cada upload e, no `afterCompletion`, apaga o objeto se a transação não confirmar. O registro em `tb_media` é revertido junto com o restante do trabalho, então banco e bucket convergem — inclusive quando a falha só é detectada no commit. Uma segunda janela é coberta dentro do próprio `upload`: se o `save` da mídia falhar depois do `putObject`, o objeto é apagado imediatamente, já que sem o registro ele seria inalcançável para qualquer compensação.
-- **Ponto de atenção:** se a JVM morrer entre o `putObject` e o commit, o objeto vira órfão e só um job de varredura (outbox pattern) poderia limpá-lo.
+- **Ponto de atenção:** se a JVM morrer entre o `putObject` e o commit, o objeto fica órfão até o `MediaOrphanSweepJob` listar o bucket e apagá-lo após o grace period (`app.purge.media-orphans`).
 
 ### Referências de comunidade: tabelas ou colunas de texto?
 - **Decisão:** tipo, status e tópico de uma comunidade são **entidades de referência** (`tb_community_types`, `tb_community_status`, `tb_community_topics`) com identidade `bigint`, e não colunas `VARCHAR` com `CHECK`.
@@ -366,10 +366,9 @@ Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, a
 ### Dívidas e pontos de atenção conhecidos
 
 - **Validação de arquivo crua:** o upload rejeita tamanho acima de `MEDIA_MAX_SIZE_BYTES` (5 MB) e combinações `content_type`/extensão fora das regras de `media.upload.types`, mas não inspeciona os *magic bytes* do arquivo — um JPEG renomeado de `.png` **e** declarado como `image/png` passa na validação. A checagem garante apenas que a declaração é *internamente consistente*, não que ela é verdadeira.
-- **Rollback do S3 sem retry:** a compensação roda de forma síncrona no mesmo thread da requisição e sem retentativas. Se o `deleteObject` falhar, o erro fica no log (`media.upload.rollback_failed`) e o objeto vira órfão.
-- **Sem job de purga de órfãos:** não há varredura periódica para localizar objetos no bucket sem registro em `tb_media` (outbox pattern).
+- **Rollback do S3 sem retry:** a compensação roda de forma síncrona no mesmo thread da requisição e sem retentativas. Se o `deleteObject` falhar, o erro fica no log (`media.upload.rollback_failed`) e o objeto fica órfão até o sweep.
 - **Comunidade sem edição:** nome, descrição, tópico, tipo e status não mudam depois da criação; regras da comunidade, busca textual, posts e moderação ainda não foram implementados.
-- **Exclusão de mídia sem retry nem auditoria:** o `deleteObject` após o commit também não tem retentativa; se falhar, o objeto vira órfão e só aparece em `media.upload.rollback_failed`.
+- **Exclusão de mídia sem retry nem auditoria:** o `deleteObject` após o commit também não tem retentativa; se falhar, o objeto fica órfão até o sweep e só aparece em `media.upload.rollback_failed` / `media.orphan_sweep.*`.
 - **`findUserOrThrow` não filtra `isActive`:** um usuário desativado ainda pode ser lido por id.
 - **Sem job de purga de refresh tokens** expirados/revogados; sem revogação de access token antes do `exp`. O filtro de JWT também não verifica `isActive`: após excluir a conta, o usuário ainda age (por exemplo, entra em comunidades) até o token expirar.
 - **Sem cache de URL pré-assinada:** uma nova URL é assinada a cada leitura.

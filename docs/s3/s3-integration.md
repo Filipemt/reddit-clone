@@ -8,7 +8,7 @@ A aplicação usa o **AWS SDK for Java v2** (`software.amazon.awssdk:s3`, versã
 
 | Cliente | Responsabilidade |
 |---|---|
-| `S3Client` | operações de objeto no bucket — `putObject` no upload e `deleteObject` na compensação e na exclusão após o commit |
+| `S3Client` | operações de objeto no bucket — `putObject` no upload, `deleteObject` na compensação/exclusão após o commit e `listObjectsV2` no job de varredura de órfãos |
 | `S3Presigner` | geração de **URLs pré-assinadas** (presigned URLs) para leitura do objeto |
 
 O binário do arquivo **nunca é persistido no banco**: ele vai para o bucket e o PostgreSQL guarda apenas a referência (`bucket`, `object_key`) e metadados (`content_type`, `size_bytes`, `created_at`) na tabela `tb_media`.
@@ -37,6 +37,7 @@ A camada vive em `src/main/java/com/motadev/clone_reddit/media/` e a configuraç
 ```
 CommunityController  (POST /communities, PUT/DELETE /communities/{id}/icon|banner)
 CommunityPurgeJob    (purge físico das comunidades removidas)
+MediaOrphanSweepJob  (varredura de objetos S3 sem linha em tb_media)
         │
         ▼
 CommunityServiceImpl  ──► MediaServiceI ──► S3ServiceImpl
@@ -45,6 +46,9 @@ CommunityServiceImpl  ──► MediaServiceI ──► S3ServiceImpl
                                              ├── S3Presigner     (presignGetObject)
                                              ├── MediaRepository (tb_media)
                                              └── MediaConverter  (MultipartFile ⇄ DTO/entidade)
+
+MediaOrphanSweepJob ──► S3ObjectStore (listObjectsV2, deleteObject)
+                     └── MediaRepository.findExistingObjectKeys
 ```
 
 Responsabilidades de cada componente:
@@ -59,7 +63,10 @@ Responsabilidades de cada componente:
 | `media/config/MediaTypeRule.java` | Record de uma regra: um `content-type` e as extensões aceitas para ele |
 | `media/converter/MediaConverter.java` | Converte `MultipartFile` → `MediaUploadRequest`, `MediaUploadRequest` → `Media` e `Media` → `MediaResponse` |
 | `media/entity/Media.java` | Entidade JPA da tabela `tb_media` |
-| `media/repository/MediaRepository.java` | Repositório JPA de mídia (apenas as operações padrão do `JpaRepository`) |
+| `media/repository/MediaRepository.java` | Repositório JPA de mídia (`JpaRepository` + `findExistingObjectKeys` para o sweep) |
+| `media/service/S3ObjectStore.java` | Colaborador de listagem/exclusão no bucket usado pelo `MediaOrphanSweepJob` (não passa pelo caminho de presign) |
+| `media/service/impl/MediaOrphanSweepJob.java` | Job agendado que lista o bucket, compara com `tb_media.object_key` e apaga órfãos além do grace period |
+| `media/config/MediaOrphanSweepProperties.java` | Record `app.purge.media-orphans` (`gracePeriod`, `batchSize`, `enabled`, `advisoryLockId`) |
 | `media/dtos/request/MediaUploadRequest.java` | Record com `content` (`byte[]`), `contentType` e `folder` |
 | `media/dtos/response/MediaResponse.java` | Record com `mediaId` e `url` |
 
@@ -378,7 +385,7 @@ Para subir o mesmo código contra um S3 compatível local (MinIO, conforme a dec
 
 ### 9.2 Credenciais e IAM
 
-A aplicação usa uma access key de longa duração (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). As operações que o código executa no bucket são `PutObject` (upload), leitura via URL assinada e `DeleteObject` (a compensação da [seção 5.1](#51-compensacao-do-s3-quando-a-transacao-nao-confirma)) — o que é autorizado por `s3:GetObject` e `s3:DeleteObject` na identidade que assina. A policy mínima equivalente:
+A aplicação usa uma access key de longa duração (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`). As operações que o código executa no bucket são `PutObject` (upload), leitura via URL assinada, `DeleteObject` (compensação e sweep) e `ListBucket` (varredura de órfãos). A policy mínima equivalente:
 
 ```json
 {
@@ -388,6 +395,11 @@ A aplicação usa uma access key de longa duração (`AWS_ACCESS_KEY_ID` / `AWS_
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
       "Resource": "arn:aws:s3:::<NOME_DO_BUCKET>/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::<NOME_DO_BUCKET>"
     }
   ]
 }
@@ -395,7 +407,7 @@ A aplicação usa uma access key de longa duração (`AWS_ACCESS_KEY_ID` / `AWS_
 
 > **`s3:DeleteObject` é obrigatório desde a introdução da compensação.** Sem ele, todo rollback termina em `AccessDenied`: o `deleteObjectQuietly` engole a exceção, registra `media.upload.rollback_failed` e o objeto vira órfão sem que a resposta ao cliente indique qualquer problema — ou seja, a falha é silenciosa do lado de fora e só aparece no log. Se a identidade for criada antes desta mudança, a policy precisa ser atualizada.
 
-O `s3:ListBucket` não é necessário para o fluxo atual — a camada não lista objetos. Ele só entra na policy se a evolução incluir listagem ou navegação por prefixo.
+> **`s3:ListBucket` é obrigatório desde o `MediaOrphanSweepJob`.** Sem ele, o job não consegue listar o bucket e a reconciliação de órfãos não roda. A action cai no ARN do **bucket** (não no `/*` dos objetos).
 
 ### 9.3 CORS
 
@@ -422,8 +434,8 @@ Fatos do que existe hoje no código, para evitar suposições ao consumir a cama
 - **Não há controller de `media`.** O upload e a exclusão só são disparados por outro módulo (as rotas de ícone/banner de comunidade e o purge); `MediaServiceI` é chamado internamente, não exposto em rota própria.
 - **A exclusão de mídia é sempre indireta.** `deleteAfterCommit` apaga a linha na transação e o objeto após o commit ([seção 5.2](#52-exclusao-de-midia-deleteaftercommit)), mas só quando a mídia deixa de ser referenciada (troca, remoção ou purge). Não deixa metadados de auditoria: a remoção só aparece em log quando falha (`media.upload.rollback_failed`).
 - **A validação confia no `content_type` declarado.** O tamanho e a combinação `content-type`/extensão são verificados antes de ler os bytes (`MediaFileValidator`), mas não há inspeção de *magic bytes*. Como a checagem é de consistência e não de conteúdo, um JPEG renomeado de `.png` **e** declarado como `image/png` continua passando, e o `tb_media.content_type` registra `image/png`. Fechar isso exigiria ler os primeiros bytes do arquivo e comparar com o que foi declarado.
-- **A compensação é síncrona e sem retry.** O `deleteObject` roda no mesmo thread da requisição, dentro do `afterCompletion`, e não há retentativa. Falha de delete fica em `media.upload.rollback_failed` e o objeto vira órfão.
-- **A janela "JVM morre entre `putObject` e commit" continua aberta.** Nem a transação do banco nem a compensação resolvem esse caso; a correção é um job de varredura (outbox pattern) que compare o bucket contra `tb_media`.
-- **Cobertura de teste:** `media/service/impl/S3ServiceImplTest` (16 casos: upload, validação, compensação no `save`, rollback confirmado/não confirmado/desconhecido, delete que falha sem mascarar a exceção original, URLs em lote e `deleteAfterCommit` com e sem transação) e `media/validator/MediaFileValidatorTest` (13 casos, incluindo extensão com barra). `community/service/impl/CommunityServiceImplTest` cobre criação, troca e remoção de ícone/banner do lado consumidor, e `shared/exception/GlobalExceptionHandlerTest` cobre o 413 do limite de upload.
+- **A compensação é síncrona e sem retry.** O `deleteObject` roda no mesmo thread da requisição, dentro do `afterCompletion`, e não há retentativa. Falha de delete fica em `media.upload.rollback_failed` e o objeto vira órfão até o sweep.
+- **Varredura de órfãos:** `MediaOrphanSweepJob` lista o bucket (`s3:ListBucket`), compara cada chave com `tb_media.object_key` e apaga objetos sem linha cujo `LastModified` seja mais antigo que `app.purge.media-orphans.grace-period` (default `1h`). Usa advisory lock `765432109`, lotes via `batch-size` e flag `enabled`. Fecha a janela "JVM morre entre `putObject` e commit" (e falhas silenciosas de `deleteObject`) com atraso do grace period, para não apagar uploads em voo.
+- **Cobertura de teste:** `media/service/impl/S3ServiceImplTest` (16 casos: upload, validação, compensação no `save`, rollback confirmado/não confirmado/desconhecido, delete que falha sem mascarar a exceção original, URLs em lote e `deleteAfterCommit` com e sem transação), `media/service/impl/MediaOrphanSweepJobTest` (disabled / lock não adquirido / só órfãos past grace) e `media/validator/MediaFileValidatorTest` (13 casos, incluindo extensão com barra). `community/service/impl/CommunityServiceImplTest` cobre criação, troca e remoção de ícone/banner do lado consumidor, e `shared/exception/GlobalExceptionHandlerTest` cobre o 413 do limite de upload.
 - **Os testes de integração não exigem credenciais reais.** Os testes que sobem o contexto usam `@ActiveProfiles("test")`, e `src/test/resources/application-test.yaml` define chaves JWT de teste e valores falsos para o bloco `aws`, suficientes para construir o `StorageConfig` (nenhum teste chama o S3 de verdade). O PostgreSQL vem do Testcontainers.
 - **Sem cache de URL.** `getUrl` assina uma nova URL a cada chamada; a validade é a de `AWS_S3_PRESIGNED_URL_SECONDS` a partir do momento da geração.
