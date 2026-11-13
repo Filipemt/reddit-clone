@@ -5,10 +5,14 @@ import com.motadev.clone_reddit.shared.exception.ResourceInvalidException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Locale;
 
 @Component
 public class MediaFileValidator {
+
+    private static final int MAGIC_BYTES_HEADER_LENGTH = 12;
 
     private final MediaUploadProperties properties;
 
@@ -34,7 +38,23 @@ public class MediaFileValidator {
                     "File extension is not allowed for content type " + contentType + ".");
         }
 
+        validateMagicBytes(file, contentType);
+
         return extension;
+    }
+
+    private void validateMagicBytes(MultipartFile file, String contentType) {
+        byte[] header;
+        try (InputStream inputStream = file.getInputStream()) {
+            header = inputStream.readNBytes(MAGIC_BYTES_HEADER_LENGTH);
+        } catch (IOException ex) {
+            throw new ResourceInvalidException("File content could not be read for type validation.");
+        }
+
+        if (!MediaMagicBytes.matches(contentType, header)) {
+            throw new ResourceInvalidException(
+                    "File content does not match the declared content type " + contentType + ".");
+        }
     }
 
     private String extractExtension(String originalFilename) {
