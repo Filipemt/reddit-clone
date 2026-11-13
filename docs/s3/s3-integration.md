@@ -40,7 +40,7 @@ CommunityPurgeJob    (purge físico das comunidades removidas)
         │
         ▼
 CommunityServiceImpl  ──► MediaServiceI ──► S3ServiceImpl
-      (@Transactional)                     ├── MediaFileValidator (tamanho/tipo/extensão)
+      (@Transactional)                     ├── MediaFileValidator (tamanho/tipo/extensão/magic bytes)
                                              ├── S3Client        (putObject, deleteObject)
                                              ├── S3Presigner     (presignGetObject)
                                              ├── MediaRepository (tb_media)
@@ -54,7 +54,7 @@ Responsabilidades de cada componente:
 | `shared/config/StorageConfig.java` | Cria os beans `S3Client` e `S3Presigner` com região e credenciais estáticas vindas da configuração |
 | `media/service/MediaServiceI.java` | Contrato da camada: `upload(MultipartFile, String folder)`, `getUrl(UUID mediaId)`, `getUrls(Collection<UUID>)` (em lote) e `deleteAfterCommit(Collection<UUID>)` |
 | `media/service/impl/S3ServiceImpl.java` | Valida o arquivo, monta a `objectKey`, executa o `putObject`, persiste os metadados, assina as URLs de leitura, registra a compensação do objeto quando a transação não confirma e apaga mídias (linha no ato, objeto após o commit) |
-| `media/validator/MediaFileValidator.java` | Rejeita tamanho e combinações `content-type`/extensão fora das regras antes de ler os bytes; devolve a extensão normalizada |
+| `media/validator/MediaFileValidator.java` | Rejeita tamanho, combinações `content-type`/extensão fora das regras e conteúdo cujo *magic bytes* não batem com o tipo declarado; devolve a extensão normalizada |
 | `media/config/MediaUploadProperties.java` | Record de configuração (`maxSizeBytes` + regras de tipo), vinculado por `@ConfigurationProperties` e validado no boot |
 | `media/config/MediaTypeRule.java` | Record de uma regra: um `content-type` e as extensões aceitas para ele |
 | `media/converter/MediaConverter.java` | Converte `MultipartFile` → `MediaUploadRequest`, `MediaUploadRequest` → `Media` e `Media` → `MediaResponse` |
@@ -178,24 +178,24 @@ Uma observação sobre o `.env`: `MEDIA_MAX_SIZE_BYTES` e `AWS_S3_PRESIGNED_URL_
 
 `S3ServiceImpl.upload(MultipartFile file, String folder)`:
 
-**0. Validação do arquivo** — antes de qualquer leitura de bytes, `mediaFileValidator.validateAndResolveExtension(file)` (`MediaFileValidator`) rejeita três coisas, cada uma com `ResourceInvalidException` (tratada pelo `GlobalExceptionHandler` como **422**):
+**0. Validação do arquivo** — `mediaFileValidator.validateAndResolveExtension(file)` (`MediaFileValidator`) rejeita quatro coisas, cada uma com `ResourceInvalidException` (tratada pelo `GlobalExceptionHandler` como **422**):
 
 | Checagem | Origem da informação |
 |---|---|
 | `file.getSize() > maxSizeBytes` | Cabeçalho do multipart |
 | `file.getContentType()` não casa com nenhuma regra | Cabeçalho do multipart |
 | Extensão não casa com a regra do `content-type` declarado (ou está ausente) | `file.getOriginalFilename()` |
+| *Magic bytes* do conteúdo não batem com o `content-type` declarado (ou o arquivo é ilegível/desconhecido) | Primeiros bytes de `file.getInputStream()` |
 
-A checagem é feita em **duas passadas** sobre as regras, e não sobre uma lista plana de extensões. Primeiro o `content-type` precisa existir em alguma regra; depois a extensão precisa estar **na mesma regra** que define aquele `content-type`. Isso rejeita a combinação contraditória — um arquivo `.jpg` declarado como `image/png` passa nas duas listas soltas, mas não na regra pareada — e mantém as mensagens de erro distinguíveis.
+A checagem de allowlist é feita em **duas passadas** sobre as regras, e não sobre uma lista plana de extensões. Primeiro o `content-type` precisa existir em alguma regra; depois a extensão precisa estar **na mesma regra** que define aquele `content-type`. Isso rejeita a combinação contraditória — um arquivo `.jpg` declarado como `image/png` passa nas duas listas soltas, mas não na regra pareada — e mantém as mensagens de erro distinguíveis. Em seguida, `MediaMagicBytes` compara a assinatura do conteúdo com o tipo declarado (`image/jpeg`/`image/jpg`, `image/png`, `image/webp`, `image/gif`).
 
-A mesma extensão pode aparecer em mais de uma regra de propósito: navegadores do mundo real declaram `image/jpg` (não-padrão) junto de um arquivo `.jpg`, e um invariante rígido de "uma extensão, um único content-type" rejeitaria upload legítimo. O teste `deveAceitarContentTypeNaoPadraoQueCompartilhaExtensao` fixa essa decisão.
+A mesma extensão pode aparecer em mais de uma regra de propósito: navegadores do mundo real declaram `image/jpg` (não-padrão) junto de um arquivo `.jpg`, e um invariante rígido de "uma extensão, um único content-type" rejeitaria upload legítimo. O teste `deveAceitarContentTypeNaoPadraoQueCompartilhaExtensao` fixa essa decisão; a assinatura JPEG também cobre esse alias.
 
 O método devolve a extensão já normalizada em minúsculas, que é o que alimenta a `objectKey` — assim a lista de permissões tem uma única fonte de verdade e `S3ServiceImpl` não mantém uma segunda lógica de extração de extensão.
 
-Duas consequências que valem registrar:
+Uma consequência que vale registrar:
 
 - **A allowlist de extensões é também a sanitização da `objectKey`.** O Spring não sanitiza o filename (`StandardMultipartFile.getOriginalFilename()` devolve o valor cru do `Content-Disposition`), e a chave é `pasta + "/" + uuid + extensão`. Como `/` nunca casa com uma extensão permitida, um filename como `icon.png/../../../evil` é rejeitado em vez de produzir uma chave que escapa do prefixo.
-- **A validação não inspeciona os *magic bytes*.** O `content_type` continua sendo o declarado pelo cliente; cruzar tipo e extensão reduz o espaço de abuso, mas um JPEG renomeado de `.png` passa. Fechar isso exigiria leitura dos primeiros bytes do arquivo, o que está registrado como dívida em `README.md`.
 
 **1. Leitura do arquivo para memória** — `MediaConverter.toUploadRequest` chama `file.getBytes()` e monta o record `MediaUploadRequest(content, contentType, folder)`. Uma `IOException` na leitura é reembalada como `UncheckedIOException("Failed to read uploaded file")` (`MediaConverter.toUploadRequest`).
 
@@ -425,7 +425,7 @@ Fatos do que existe hoje no código, para evitar suposições ao consumir a cama
 
 - **Não há controller de `media`.** O upload e a exclusão só são disparados por outro módulo (as rotas de ícone/banner de comunidade e o purge); `MediaServiceI` é chamado internamente, não exposto em rota própria.
 - **A exclusão de mídia é sempre indireta.** `deleteAfterCommit` apaga a linha na transação e o objeto após o commit ([seção 5.2](#52-exclusao-de-midia-deleteaftercommit)), mas só quando a mídia deixa de ser referenciada (troca, remoção ou purge). Não deixa metadados de auditoria: a remoção só aparece em log quando falha (`media.upload.rollback_failed`).
-- **A validação confia no `content_type` declarado.** O tamanho e a combinação `content-type`/extensão são verificados antes de ler os bytes (`MediaFileValidator`), mas não há inspeção de *magic bytes*. Como a checagem é de consistência e não de conteúdo, um JPEG renomeado de `.png` **e** declarado como `image/png` continua passando, e o `tb_media.content_type` registra `image/png`. Fechar isso exigiria ler os primeiros bytes do arquivo e comparar com o que foi declarado.
+- **A validação confere declaração e conteúdo.** Além de tamanho e do par `content-type`/extensão, `MediaFileValidator` lê os primeiros bytes e exige que a assinatura case com o tipo declarado. Um JPEG renomeado de `.png` **e** declarado como `image/png` é rejeitado com `ResourceInvalidException`.
 - **A compensação é síncrona e sem retry.** O `deleteObject` roda no mesmo thread da requisição, dentro do `afterCompletion`, e não há retentativa. Falha de delete fica em `media.upload.rollback_failed` e o objeto vira órfão.
 - **A janela "JVM morre entre `putObject` e commit" continua aberta.** Nem a transação do banco nem a compensação resolvem esse caso; a correção é um job de varredura (outbox pattern) que compare o bucket contra `tb_media`.
 - **Cobertura de teste:** `media/service/impl/S3ServiceImplTest` (upload, validação, compensação no `save`, rollback confirmado/não confirmado/desconhecido, delete que falha sem mascarar a exceção original, URLs em lote, cache de URL — hit, expiração e invalidação no delete — e `deleteAfterCommit` com e sem transação) e `media/validator/MediaFileValidatorTest` (13 casos, incluindo extensão com barra). `community/service/impl/CommunityServiceImplTest` cobre criação, troca e remoção de ícone/banner do lado consumidor, e `shared/exception/GlobalExceptionHandlerTest` cobre o 413 do limite de upload.

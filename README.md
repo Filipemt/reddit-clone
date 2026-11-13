@@ -365,7 +365,6 @@ Suíte unitária e de integração cobrindo a cadeia de filtros de segurança, a
 
 ### Dívidas e pontos de atenção conhecidos
 
-- **Validação de arquivo crua:** o upload rejeita tamanho acima de `MEDIA_MAX_SIZE_BYTES` (5 MB) e combinações `content_type`/extensão fora das regras de `media.upload.types`, mas não inspeciona os *magic bytes* do arquivo — um JPEG renomeado de `.png` **e** declarado como `image/png` passa na validação. A checagem garante apenas que a declaração é *internamente consistente*, não que ela é verdadeira.
 - **Rollback do S3 sem retry:** a compensação roda de forma síncrona no mesmo thread da requisição e sem retentativas. Se o `deleteObject` falhar, o erro fica no log (`media.upload.rollback_failed`) e o objeto vira órfão.
 - **Sem job de purga de órfãos:** não há varredura periódica para localizar objetos no bucket sem registro em `tb_media` (outbox pattern).
 - **Comunidade sem edição:** nome, descrição, tópico, tipo e status não mudam depois da criação; regras da comunidade, busca textual, posts e moderação ainda não foram implementados.
