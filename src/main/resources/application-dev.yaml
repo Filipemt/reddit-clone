@@ -42,6 +42,7 @@ aws:
   s3:
     bucket-name: ${AWS_S3_BUCKET_NAME:local-bucket}
     presigned-url-expiration-seconds: ${AWS_S3_PRESIGNED_URL_SECONDS:3600}
+    presigned-url-cache-safety-buffer-seconds: ${AWS_S3_PRESIGNED_URL_CACHE_SAFETY_BUFFER_SECONDS:60}
 
 app:
   mail:

@@ -21,11 +21,14 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -38,12 +41,17 @@ public class S3ServiceImpl implements MediaServiceI {
     private final MediaConverter mediaConverter;
     private final MediaFileValidator mediaFileValidator;
     private final MediaEventLog mediaEventLog;
+    private final ConcurrentHashMap<UUID, CachedPresignedUrl> urlCache = new ConcurrentHashMap<>();
+    private Clock clock = Clock.systemUTC();
 
     @Value("${aws.s3.bucket-name}")
     private String bucketName;
 
     @Value("${aws.s3.presigned-url-expiration-seconds:3600}")
     private long presignedUrlExpirationSeconds;
+
+    @Value("${aws.s3.presigned-url-cache-safety-buffer-seconds:60}")
+    private long presignedUrlCacheSafetyBufferSeconds;
 
     public S3ServiceImpl(S3Client s3Client,
                          S3Presigner s3Presigner,
@@ -126,7 +134,7 @@ public class S3ServiceImpl implements MediaServiceI {
         Media media = mediaRepository.findById(mediaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Media not found"));
 
-        return presignUrl(media);
+        return resolveUrl(media);
     }
 
     @Override
@@ -136,7 +144,7 @@ public class S3ServiceImpl implements MediaServiceI {
         }
 
         return mediaRepository.findAllById(mediaIds).stream()
-                .collect(toMap(Media::getMediaId, this::presignUrl));
+                .collect(toMap(Media::getMediaId, this::resolveUrl));
     }
 
     @Override
@@ -151,6 +159,7 @@ public class S3ServiceImpl implements MediaServiceI {
         }
 
         mediaRepository.deleteAll(medias);
+        medias.forEach(media -> urlCache.remove(media.getMediaId()));
         registerDeleteOnCommit(medias);
     }
 
@@ -169,6 +178,22 @@ public class S3ServiceImpl implements MediaServiceI {
         });
     }
 
+    private String resolveUrl(Media media) {
+        Instant now = clock.instant();
+        CachedPresignedUrl cached = urlCache.get(media.getMediaId());
+        if (cached != null && cached.isValid(now)) {
+            return cached.url();
+        }
+
+        String url = presignUrl(media);
+        urlCache.put(media.getMediaId(), new CachedPresignedUrl(url, now.plusSeconds(cacheTtlSeconds())));
+        return url;
+    }
+
+    private long cacheTtlSeconds() {
+        return Math.max(1L, presignedUrlExpirationSeconds - presignedUrlCacheSafetyBufferSeconds);
+    }
+
     private String presignUrl(Media media) {
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofSeconds(presignedUrlExpirationSeconds))
@@ -181,5 +206,12 @@ public class S3ServiceImpl implements MediaServiceI {
         return s3Presigner.presignGetObject(presignRequest)
                 .url()
                 .toString();
+    }
+
+    private record CachedPresignedUrl(String url, Instant expiresAt) {
+
+        boolean isValid(Instant now) {
+            return now.isBefore(expiresAt);
+        }
     }
 }
