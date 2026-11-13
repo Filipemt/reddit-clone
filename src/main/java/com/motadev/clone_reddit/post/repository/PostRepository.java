@@ -9,12 +9,21 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface PostRepository extends JpaRepository<Post, UUID> {
 
     Optional<Post> findByPostIdAndDeletedAtIsNull(UUID postId);
+
+    @Query("""
+        SELECT p FROM Post p
+         WHERE p.deletedAt IS NOT NULL
+           AND p.deletedAt <= :cutoff
+           AND p.mediaId IS NOT NULL
+        """)
+    List<Post> findCandidatesForMediaPurge(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
 
     Page<Post> findByCommunityIdAndDeletedAtIsNull(UUID communityId, Pageable pageable);
 

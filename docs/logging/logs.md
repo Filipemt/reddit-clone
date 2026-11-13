@@ -154,7 +154,7 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `community.membership.deactivated` | INFO | `userId`, `membershipCount` | Exclusão de conta: inscrições ativas desativadas e contadores decrementados |
 | `community.delete.owner_account_deleted` | INFO | `userId`, `communityCount` | Exclusão de conta: comunidades das quais o usuário era dono foram removidas (soft delete) |
 
-### 4.10 Post — `post/logging/PostEventLog.java` (chamado por `PostServiceImpl`)
+### 4.10 Post — `post/logging/PostEventLog.java` (chamado por `PostServiceImpl` e `PostMediaPurgeJob`)
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
@@ -164,6 +164,9 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `post.delete.success` | INFO | `postId`, `userId`, `isAuthor` | Soft delete concluído |
 | `post.delete.already_deleted` | DEBUG | `postId`, `userId` | Soft delete idempotente |
 | `post.delete.forbidden` | WARN | `postId`, `userId` | Quem não é autor/admin tenta apagar (403) |
+| `post.media_purge.lock_not_acquired` | DEBUG | `advisoryLockId` | Outra instância detém o advisory lock; o job de purge de mídia pula a execução |
+| `post.media_purge.success` | INFO | `purgedCount`, `retentionDays` | Mídia de posts soft-deleted além da retenção foi limpa (`media_id` + `deleteAfterCommit`) |
+| `post.media_purge.nothing` | DEBUG | `retentionDays` | Lock adquirido, mas nenhum post elegível para purge de mídia |
 
 ### 4.11 Comment — `comment/logging/CommentEventLog.java` (chamado por `CommentServiceImpl`)
 

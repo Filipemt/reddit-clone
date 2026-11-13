@@ -68,7 +68,7 @@ Principais características do produto original que servem de referência para e
 | Regra da comunidade | Regras ordenadas (`position`) dentro de uma comunidade | 🟡 Modelada; ainda não alimentada pelos endpoints |
 | Mídia | Metadados de arquivos em object storage (bucket + object key) | ✅ Modelada e implementada |
 | Refresh token | Sessão do usuário (rotação, revogação, uso único) | ✅ Modelada e implementada |
-| Post | Pertence a exatamente uma comunidade | 🟡 Create/list/get/soft-delete; votos/Hot e purge de mídia ainda não |
+| Post | Pertence a exatamente uma comunidade | 🟡 Create/list/get/soft-delete, sort e purge de mídia |
 | Comentário | Auto-relacionamento (resposta aninhada) | 🟡 Create/tree/soft-delete; votos ainda não |
 | Voto | Entidade própria (não atributo) — associada a um usuário e a um alvo (post ou comentário) | 🟡 Up/down/clear + karma; Hot ranking ainda não |
 | Membership | Relação usuário ↔ comunidade (papel: membro ou moderador) | 🟡 Entrar, sair e listar implementados; promoção de moderadores não iniciada |
@@ -317,6 +317,7 @@ Monólito modular em **Spring Boot 4.1.1 / Java 25**, organizado por domínio (`
 - Criação em comunidade (`multipart`, mídia opcional via S3), listagem por comunidade (mais novos primeiro), detalhe e soft delete (autor ou `ADMIN`).
 - Autor precisa ser membro ativo; ao criar, enfileira `notification.post.created` no outbox (dono da comunidade).
 - Contadores `score`/`hot_score`/`comment_count` já existem na tabela (votos/ordenação Hot nas próximas etapas).
+- **Purge de mídia**: job semanal com advisory lock limpa `media_id` de posts soft-deleted além da retenção e remove a mídia via `deleteAfterCommit` (não apaga a linha do post). Ver [docs/posts/README.md](docs/posts/README.md).
 
 **Mensageria** (`messaging`)
 - RabbitMQ no compose; topologia (exchange `clone-reddit.events`, fila `notification.events` + DLQ) declarada em código via Spring AMQP.
