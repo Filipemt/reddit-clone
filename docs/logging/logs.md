@@ -36,7 +36,7 @@ Cada JSON contém campos padrão do ECS (`@timestamp`, `log.level`, `message`, `
 | `DEBUG` | Detalhes operacionais internos, baixo volume | `auth.refresh.created`, `auth.jwt.generated`, `community.*` de baixo volume, `media.*.no_active_transaction` |
 | `INFO` | Fluxos de negócio que funcionam (comportamento esperado) | `user.register.success`, `auth.login.success`, `auth.logout`, etc. |
 | `WARN` | Falhas esperadas/tratadas — o app responde com 4xx, mas o evento importa | `auth.login.failed`, `auth.refresh.failed`, `user.register.conflict`, `http.*`, `ratelimit.exceeded` |
-| `ERROR` | Falhas inesperadas, 5xx, com stack trace | `http.internal_error`, `media.upload.rollback_failed`, `ratelimit.store.failed` |
+| `ERROR` | Falhas inesperadas, 5xx, com stack trace | `http.internal_error`, `media.upload.rollback_failed`, `media.orphan_sweep.delete_failed`, `ratelimit.store.failed` |
 
 O nível padrão é `INFO`; logo, os eventos `DEBUG` só aparecem se o pacote for ajustado para `DEBUG` (ver [seção 6](#6-como-mudar-o-nível)).
 
@@ -121,9 +121,9 @@ O IP e o `userId` não entram no log de estouro (evita ruído/PII); a cota usa e
 | `admin.seed.skipped` | INFO | `username` | Usuário `admin` já existe na inicialização |
 | `admin.seed.created` | INFO | `username` | Usuário `admin` criado na inicialização |
 
-### 4.8 Mídia — `media/logging/MediaEventLog.java` (chamado por `S3ServiceImpl`)
+### 4.8 Mídia — `media/logging/MediaEventLog.java` (chamado por `S3ServiceImpl` e `MediaOrphanSweepJob`)
 
-Eventos da compensação do objeto no S3 quando a transação do banco não confirma, e da exclusão sem sincronização ativa. Quando aplicável, carregam `mediaId` e `objectKey` para que um órfão seja localizável sem o registro em `tb_media`.
+Eventos da compensação do objeto no S3 quando a transação do banco não confirma, da exclusão sem sincronização ativa e do job de varredura de órfãos. Quando aplicável, carregam `mediaId` e `objectKey` para que um órfão seja localizável sem o registro em `tb_media`.
 
 | Evento | Nível | Campos | Quando ocorre |
 |---|---|---|---|
@@ -131,8 +131,13 @@ Eventos da compensação do objeto no S3 quando a transação do banco não conf
 | `media.upload.rollback_unknown` | WARN | `mediaId`, `objectKey` | A transação terminou com desfecho desconhecido (`STATUS_UNKNOWN`). O objeto é **mantido** de propósito: apagar quebraria uma referência possivelmente já confirmada |
 | `media.upload.no_active_transaction` | DEBUG | `mediaId`, `objectKey` | O upload rodou sem transação ativa. O `tb_media` já foi commitado pela transação curta do repositório, então não há o que reverter e a limpeza volta a ser do chamador |
 | `media.delete.no_active_transaction` | DEBUG | `mediaCount` | A exclusão de mídia rodou sem sincronização de transação ativa; os objetos no S3 são apagados imediatamente |
+| `media.orphan_sweep.lock_not_acquired` | DEBUG | `advisoryLockId` | Outra instância detém o advisory lock; o job de varredura de órfãos pula a execução |
+| `media.orphan_sweep.success` | INFO | `deletedCount`, `gracePeriod` | Órfãos com `LastModified` além do grace period foram apagados |
+| `media.orphan_sweep.nothing` | DEBUG | `gracePeriod` | Lock adquirido, mas nenhum órfão elegível para exclusão |
+| `media.orphan_sweep.deleted` | INFO | `bucket`, `objectKey` | Um objeto órfão específico foi apagado pelo sweep |
+| `media.orphan_sweep.delete_failed` | ERROR | `bucket`, `objectKey` | O `deleteObject` do sweep falhou; o objeto permanece no bucket |
 
-`media.upload.rollback_failed` é o único dos eventos de upload que indica defeito real de compensação — os outros são situações esperadas: uma por decisão de segurança (`rollback_unknown`), outra por ausência de transação (`no_active_transaction`).
+`media.upload.rollback_failed` e `media.orphan_sweep.delete_failed` indicam defeito real de exclusão no S3 — os demais eventos de upload/sweep são situações esperadas ou de acompanhamento.
 
 ### 4.9 Comunidade — `community/logging/CommunityEventLog.java` (chamado por `CommunityServiceImpl`, `CommunityPurgeJob`, `CommunityMembershipServiceImpl` e `CommunityAccountDeletionHandler`)
 
